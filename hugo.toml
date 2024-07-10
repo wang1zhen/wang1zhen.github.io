@@ -1,0 +1,13 @@
+baseURL = 'https://wang1zhen.github.io/blog/'
+languageCode = 'en-us'
+title = "wang1zhen's Blog Site"
+theme = 'PaperMod'
+
+[markup]
+  defaultMarkdownHandler = 'org'
+
+[menu]
+ [[menu.main]]
+    name = "About"
+    pageRef = "/about"
+    weight = 10

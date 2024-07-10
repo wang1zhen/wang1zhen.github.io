@@ -1,0 +1,15 @@
+---
+title: "About"
+url: about
+_build:
+  list: never
+---
+WANG Yizhen
+
+2023 -- now Master, Tokyo University
+
+2019 -- 2020 Master (quit), University of Melbourne
+
+2014 -- 2018 Bachelor, Shanghai Jiaotong University
+
+[[https://blog.wang1zhen.top][Blog Link]]
