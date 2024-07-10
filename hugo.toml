@@ -1,4 +1,4 @@
-baseURL = 'https://wang1zhen.github.io/blog/'
+baseURL = 'https://blog.wang1zhen.top/'
 languageCode = 'en-us'
 title = "wang1zhen's Blog Site"
 theme = 'PaperMod'
