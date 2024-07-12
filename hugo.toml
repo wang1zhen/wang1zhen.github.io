@@ -1,13 +1,28 @@
 baseURL = 'https://blog.wang1zhen.top/'
 languageCode = 'en-us'
-title = "wang1zhen's Blog Site"
+title = "wang1zhen's Homepage"
 theme = 'PaperMod'
+ShowToc = true
+TocOpen = true
 
-[markup]
-  defaultMarkdownHandler = 'org'
+[markup.goldmark.renderer]
+  unsafe = true
 
 [menu]
  [[menu.main]]
     name = "About"
     pageRef = "/about"
     weight = 10
+
+[params.homeInfoParams]
+Title = "wang1zhen's Homepage"
+Content = "May the force be with you."
+
+[[params.socialIcons]]
+name = "github"
+url = "https://github.com/wang1zhen/"
+
+[params]
+  ShowReadingTime = true
+  ShowBreadCrumbs = true
+  ShowCodeCopyButtons = true

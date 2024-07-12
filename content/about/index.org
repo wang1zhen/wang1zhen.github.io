@@ -4,7 +4,7 @@ url: about
 _build:
   list: never
 ---
-WANG Yizhen
+王 一臻 WANG Yizhen オウ イシン
 
 2023 -- now Master, Tokyo University
 
@@ -12,4 +12,4 @@ WANG Yizhen
 
 2014 -- 2018 Bachelor, Shanghai Jiaotong University
 
-[[https://blog.wang1zhen.top][Blog Link]]
+[[https://love.wang1zhen.top][Made with love]]
