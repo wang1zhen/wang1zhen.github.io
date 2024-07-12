@@ -1,7 +1,7 @@
 #+hugo_base_dir: ../
+#+hugo_section: learn
 
 * TODO Installation of Arch with btrfs
   :PROPERTIES:
   :EXPORT_FILE_NAME: install-arch-btrfs
   :END:
-

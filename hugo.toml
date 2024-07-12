@@ -10,7 +10,15 @@ TocOpen = true
 
 [menu]
  [[menu.main]]
-    name = "About"
+    name = "技术"
+    pageRef = "/tech"
+    weight = 1
+ [[menu.main]]
+    name = "学习"
+    pageRef = "/learn"
+    weight = 2
+ [[menu.main]]
+    name = "关于"
     pageRef = "/about"
     weight = 10
 
