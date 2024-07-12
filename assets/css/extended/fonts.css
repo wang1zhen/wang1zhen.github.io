@@ -1,0 +1,21 @@
+<link href="https://fonts.font.im/css2?family=Noto+Serif&family=Noto+Serif+JP&family=Noto+Serif+SC&display=swap" rel="stylesheet">
+
+body {
+    font-family: 'Noto Serif', 'Noto Serif CJK JP', 'Noto Serif CJK SC', serif;
+}
+
+h1, h2, h3, h4, h5, h6 {
+    font-family: 'Noto Serif', 'Noto Serif CJK JP', 'Noto Serif CJK SC', serif;
+}
+
+main {
+    font-family: 'Noto Serif', 'Noto Serif CJK JP', 'Noto Serif CJK SC', serif;
+}
+
+header {
+    font-family: 'Noto Serif', 'Noto Serif CJK JP', 'Noto Serif CJK SC', serif;
+}
+
+footer {
+    font-family: 'Noto Serif', 'Noto Serif CJK JP', 'Noto Serif CJK SC', serif;
+}

@@ -31,6 +31,6 @@ name = "github"
 url = "https://github.com/wang1zhen/"
 
 [params]
-  ShowReadingTime = true
-  ShowBreadCrumbs = true
+  ShowReadingTime = false
+  ShowBreadCrumbs = false
   ShowCodeCopyButtons = true

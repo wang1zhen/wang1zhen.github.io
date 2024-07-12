@@ -1,7 +1,14 @@
 #+hugo_base_dir: ../
 #+hugo_section: learn
 
-* TODO Installation of Arch with btrfs
-  :PROPERTIES:
-  :EXPORT_FILE_NAME: install-arch-btrfs
-  :END:
+* 海辺のカフカ
+** 海辺のカフカ 0
+   :PROPERTIES:
+   :EXPORT_FILE_NAME: 海辺のカフカ 0
+   :END:
+
+   
+** TODO 海辺のカフカ 1
+   :PROPERTIES:
+   :EXPORT_FILE_NAME: 海辺のカフカ 1
+   :END:
