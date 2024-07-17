@@ -34,3 +34,4 @@ url = "https://github.com/wang1zhen/"
   ShowCodeCopyButtons = true
   showtoc = true
   tocopen = true
+  mainSections = ["tech", "learn"]
