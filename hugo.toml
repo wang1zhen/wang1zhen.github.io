@@ -8,21 +8,21 @@ theme = 'PaperMod'
 
 [menu]
  [[menu.main]]
-    name = "技术"
+    name = "技术/Tech"
     pageRef = "/tech"
     weight = 1
  [[menu.main]]
-    name = "学习"
+    name = "学习/Learn"
     pageRef = "/learn"
     weight = 2
  [[menu.main]]
-    name = "关于"
+    name = "关于/About"
     pageRef = "/about"
     weight = 10
 
 [params.homeInfoParams]
-Title = "wang1zhen's Homepage"
-Content = "May the force be with you."
+Title = "Stay Awhile and Listen.<br>英雄请留步，且听我一言。"
+Content = ""
 
 [[params.socialIcons]]
 name = "github"
