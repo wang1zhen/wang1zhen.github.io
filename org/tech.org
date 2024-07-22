@@ -356,3 +356,41 @@
       #+BEGIN_SRC sh
         snapper -c root create --description "Initial snapshot"
       #+END_SRC
+
+* DONE 为 Linux 系统启用 zram
+  CLOSED: [2024-07-22 Mon 14:08]
+  :PROPERTIES:
+  :EXPORT_FILE_NAME: linux-enable-zram
+  :END:
+
+  在 linux 系统中使用 zram 可以对内存进行压缩（现代 CPU 下几乎即时），提升表现。
+
+** zram-generator
+
+*** 安装
+    #+begin_src shell
+      sudo pacman -S zram-generator
+    #+end_src
+
+*** 配置 systemd service
+    =/etc/systemd/zram-generator.conf=
+    #+begin_example
+      [zram0]
+      zram-size = ram / 2
+      compression-algorithm = zstd
+    #+end_example
+
+*** systemd
+    #+begin_src shell
+      sudo systemctl daemon-reload
+      sudo systemctl start systemd-zram-setup@zram0.service
+    #+end_src
+
+*** 优化
+    =/etc/sysctl.d/99-vm-zram-parameters.conf=
+    #+begin_example
+      vm.swappiness = 200
+      vm.watermark_boost_factor = 0
+      vm.watermark_scale_factor = 125
+      vm.page-cluster = 0
+    #+end_example
