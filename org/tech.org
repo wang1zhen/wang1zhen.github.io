@@ -398,7 +398,7 @@
 
 
 * DONE 在 Debian 稳定版中通过 APT Pinning 安装特定的 Sid 软件包
-  CLOSED: [2024-08-03 Sat 16:40]
+  CLOSED: [2024-08-03 Sat 19:45]
   :PROPERTIES:
   :EXPORT_FILE_NAME: debian-install-package-from-sid-with-apt-pinning
   :END:
@@ -430,10 +430,21 @@
    - `a=stable-backports`: 优先级 800 确保 Backports 中的包在没有其他更高优先级（如 `stable`）的情况下可以被选中。
    - `a=unstable`: 优先级 100 确保 Sid 的包只有在明确指定时才会被安装。
 
+** 只对特定包从 sid 更新
+   建立 =/etc/apt/preferences.d/sid-packages= 文件
+   #+begin_example
+     Package: emacs-pgtk
+     Pin: release a=unstable
+     Pin-Priority: 1001
+
+     Package: hugo
+     Pin: release a=unstable
+     Pin-Priority: 1001
+   #+end_example
 ** 应用
 
    #+begin_src bash
      sudo apt update
      apt list --upgradable
-     apt policy package-name
+     apt policy <some-package>
    #+end_src
