@@ -39,11 +39,7 @@ Pin-Priority: 100
 建立 `/etc/apt/preferences.d/sid-packages` 文件
 
 ```text
-Package: emacs-pgtk
-Pin: release a=unstable
-Pin-Priority: 1001
-
-Package: hugo
+Package: emacs-pgtk hugo
 Pin: release a=unstable
 Pin-Priority: 1001
 ```

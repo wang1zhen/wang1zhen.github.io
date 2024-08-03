@@ -433,11 +433,7 @@
 ** 只对特定包从 sid 更新
    建立 =/etc/apt/preferences.d/sid-packages= 文件
    #+begin_example
-     Package: emacs-pgtk
-     Pin: release a=unstable
-     Pin-Priority: 1001
-
-     Package: hugo
+     Package: emacs-pgtk hugo
      Pin: release a=unstable
      Pin-Priority: 1001
    #+end_example
