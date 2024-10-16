@@ -518,10 +518,11 @@
     题外话，这么多设备的供电还是建议弄个 PDU，便宜、口多、可靠，如果还担心断电和市电电压不稳的话，可以再买个 UPS。当然，折腾是无止境的……
 
 * DONE 修改网卡 MAC 地址
+  CLOSED: [2024-10-16 Wed 11:20]
   :PROPERTIES:
   :EXPORT_FILE_NAME: change-mac-address
   :END:
-  CLOSED: [2024-10-16 Wed 11:20]
+
   From [[https://superuser.com/questions/1011721/how-do-i-change-wifi-adapter-mac-address-for-win7-8-10-network-adapter-advance]]
 
 ** Edit Registry

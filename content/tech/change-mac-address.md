@@ -1,10 +1,10 @@
 +++
 title = "修改网卡 MAC 地址"
 author = ["wang1zhen"]
+date = 2024-10-16T11:20:00+09:00
 draft = false
 +++
 
-CLOSED: <span class="timestamp-wrapper"><span class="timestamp">[2024-10-16 Wed 11:20]</span></span>
 From <https://superuser.com/questions/1011721/how-do-i-change-wifi-adapter-mac-address-for-win7-8-10-network-adapter-advance>
 
 
