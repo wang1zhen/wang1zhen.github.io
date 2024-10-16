@@ -516,3 +516,44 @@
     这是一个明纬的开关电源。由于这里的设备太多，但是不少都是 12V DC 供电，因此用这样一个开关电源来集中供电能省下不少空间和插座。
 
     题外话，这么多设备的供电还是建议弄个 PDU，便宜、口多、可靠，如果还担心断电和市电电压不稳的话，可以再买个 UPS。当然，折腾是无止境的……
+
+* DONE 修改网卡 MAC 地址
+  :PROPERTIES:
+  :EXPORT_FILE_NAME: change-mac-address
+  :END:
+  CLOSED: [2024-10-16 Wed 11:20]
+  From [[https://superuser.com/questions/1011721/how-do-i-change-wifi-adapter-mac-address-for-win7-8-10-network-adapter-advance]]
+
+** Edit Registry
+   =win+r= regedit
+   =HKLM\SYSTEM\CurrentControlSet\Control\Class\{4D36E972-E325-11CE-BFC1-08002BE10318}\00xx\NDI\params=
+
+   Replace =00xx= with the numerical key associated with your network adapter by checking the =DriverDesc= string value.
+
+   Under =params=, create a new key named =NetworkAddress=.
+
+   Add the following string values under the =NetworkAddress= key:
+   #+begin_example
+     "optional"="1"
+     "type"="edit"
+     "uppercase"="1"
+     "limittext"="12"
+     "paramdesc"="Network Address"
+   #+end_example
+
+   After completing the steps, check the "Advanced" tab in your network adapter's properties. The "Network Address" field should appear.
+
+** .reg file for reference:
+   =MAC.reg=
+   #+BEGIN_example
+     Windows Registry Editor Version 5.00
+
+     [HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\Class\{4D36E972-E325-11CE-BFC1-08002BE10318}\0009\NDI\params\NetworkAddress]
+     "optional"="1"
+     "type"="edit"
+     "uppercase"="1"
+     "limittext"="12"
+     "paramdesc"="Network Address"
+   #+END_example
+
+   In this example, the Wi-Fi adapter is located under `0009`. Modify the key to match the specific adapter on your machine.
