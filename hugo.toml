@@ -1,4 +1,4 @@
-baseURL = 'https://blog.wang1zhen.top/'
+baseURL = 'https://blog.wang1zhen.com/'
 languageCode = 'en-us'
 title = "wang1zhen's Homepage"
 theme = 'PaperMod'
