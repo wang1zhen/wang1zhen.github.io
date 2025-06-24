@@ -26,4 +26,4 @@
   |              | 本科           | 上海交通大学                   |
   |              | 学部           | 上海交通大学                   |
 
-  [[https://love.wang1zhen.top][Made with love]]
+  [[https://love.wang1zhen.com][Made with love]]

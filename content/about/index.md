@@ -27,4 +27,4 @@ draft = false
 
 </div>
 
-[Made with love](https://love.wang1zhen.top)
+[Made with love](https://love.wang1zhen.com)
