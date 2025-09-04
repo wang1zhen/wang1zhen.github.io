@@ -1,6 +1,6 @@
 +++
 title = "arch on zfs 在 zfs 上安装 archlinux"
-author = ["user name"]
+author = ["wang1zhen"]
 date = 2025-09-04T23:26:00+09:00
 draft = false
 +++
@@ -301,6 +301,12 @@ zfs create \
     -o exec=on \
     -o setuid=off \
     zroot/tmp
+
+# 创建SMB共享数据集 - 私有共享
+zfs create \
+    -o mountpoint=/share \
+    -o sharesmb="name=share,guestok=false" \
+    zroot/share
 ```
 
 
@@ -320,12 +326,14 @@ zfs set compression=zstd zroot/home
 zfs set compression=zstd zroot/var
 zfs set compression=zstd zroot/var/log
 zfs set compression=zstd zroot/var/cache
+zfs set compression=zstd zroot/share
 zfs set compression=off zroot/tmp
 
 # 优化recordsize设置
 zfs set recordsize=128K zroot/ROOT/root
 zfs set recordsize=128K zroot/home
 zfs set recordsize=1M zroot/games
+zfs set recordsize=1M zroot/share
 zfs set recordsize=64K zroot/docker
 
 # 设置缓存文件
@@ -377,7 +385,8 @@ swapon /dev/nvme0n1p2
 pacstrap -K /mnt base base-devel linux-lts linux-lts-headers linux-firmware \
          amd-ucode vim man-db man-pages texinfo grub efibootmgr \
          networkmanager openssh git wget curl \
-         zfs-dkms zfs-utils plasma-meta sddm
+         zfs-dkms zfs-utils plasma-meta sddm \
+         samba
 ```
 
 说明：
@@ -573,6 +582,24 @@ EDITOR=vim visudo
 mkdir -p /games
 chown 1000:1000 /games
 chmod 755 /games
+```
+
+
+### 配置SMB共享 {#配置smb共享}
+
+```sh
+# 设置/share目录权限（仅uid=1000用户可访问）
+chown 1000:1000 /share
+chmod 700 /share
+
+# 为用户设置SMB密码（请替换username为实际用户名）
+smbpasswd -a username
+
+# 启用SMB服务
+systemctl enable smb
+systemctl enable nmb
+
+echo "SMB共享配置完成：\\\\server\\share"
 ```
 
 
@@ -944,6 +971,26 @@ sudo systemctl enable sshd
 sudo systemctl restart sshd
 
 echo "SSH公钥认证配置完成"
+```
+
+
+### 验证SMB共享 {#验证smb共享}
+
+```sh
+# 检查SMB服务状态
+sudo systemctl status smb
+sudo systemctl status nmb
+
+# 验证ZFS SMB共享配置
+zfs get sharesmb zroot/share
+
+# 查看共享列表
+smbclient -L localhost -U username
+
+# 测试共享访问
+ls -la /share
+
+echo "SMB共享验证完成"
 ```
 
 
@@ -1336,6 +1383,13 @@ zfs list -t snapshot | grep pacman            # 查看pacman快照
 zpool iostat 1           # 实时I/O统计
 cat /proc/spl/kstat/zfs/arcstats | grep size  # ARC缓存大小
 sudo zfs get compressratio zroot/ROOT/root    # 查看压缩比
+
+# SMB共享管理
+zfs get sharesmb zroot/share            # 查看SMB共享配置
+sudo systemctl status smb               # 检查SMB服务状态
+smbclient -L localhost -U username      # 查看共享列表
+sudo smbpasswd -a username              # 添加SMB用户
+ls -la /share                          # 检查共享目录权限
 
 # 维护操作
 sudo zpool status -v     # 详细池状态（包含scrub信息）
