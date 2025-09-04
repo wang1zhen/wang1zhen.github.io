@@ -246,11 +246,12 @@ zfs create \
     -o setuid=off \
     rpool/tmp
 
-# 创建SMB共享数据集 - 私有共享
+# 创建SMB共享数据集 - 私有共享，性能优化
 zfs create \
     -o mountpoint=/share \
     -o compression=zstd \
-    -o sharesmb="name=share,guestok=false" \
+    -o sharesmb=on \
+    -o atime=off \
     rpool/share
 ```
 
@@ -507,8 +508,29 @@ usermod -aG sudo username
 chown 1000:1000 /share
 chmod 700 /share
 
+# 配置Samba配置文件
+cat > /etc/samba/smb.conf << 'EOF'
+[global]
+    workgroup = WORKGROUP
+    security = user
+    map to guest = never
+    server string = Debian ZFS Server
+
+[share]
+    path = /share
+    guest ok = no
+    read only = no
+    valid users = username
+    comment = Private ZFS Share
+    create mask = 0660
+    directory mask = 0770
+EOF
+
 # 为用户设置SMB密码（请替换username为实际用户名）
 smbpasswd -a username
+
+# 验证Samba配置
+testparm -s
 
 # 启用SMB服务
 systemctl enable smbd
@@ -659,6 +681,9 @@ sudo systemctl status nmbd
 # 验证ZFS SMB共享配置
 zfs get sharesmb rpool/share
 
+# 验证Samba配置文件语法
+sudo testparm -s
+
 # 查看共享列表
 smbclient -L localhost -U username
 
@@ -666,6 +691,40 @@ smbclient -L localhost -U username
 ls -la /share
 
 echo "SMB共享验证完成"
+```
+
+
+### SMB用户管理 {#smb用户管理}
+
+```sh
+# 查看当前所有SMB用户
+sudo pdbedit -L
+
+# 查看特定用户的详细信息
+sudo pdbedit -L -v -u username
+
+# 添加新的SMB用户（用户必须先是系统用户）
+sudo smbpasswd -a new_username
+
+# 更改SMB用户密码
+sudo smbpasswd username
+
+# 禁用SMB用户（不删除）
+sudo smbpasswd -d username
+
+# 启用被禁用的SMB用户
+sudo smbpasswd -e username
+
+# 删除SMB用户
+sudo smbpasswd -x username
+
+# 检查SMB配置是否合法
+sudo testparm
+
+# 查看当前SMB连接状态
+sudo smbstatus
+
+echo "SMB用户管理完成"
 ```
 
 
@@ -793,3 +852,57 @@ sudo smartctl -a /dev/sdb
 
 
 ## 常用命令速查 {#常用命令速查}
+
+```sh
+# ZFS管理
+sudo zpool status         # 查看存储池状态
+sudo zfs list            # 查看所有数据集
+sudo zpool scrub rpool   # 手动执行scrub
+sudo zpool trim rpool    # 手动执行trim
+
+# RAID0条带管理
+sudo zpool status -v rpool           # 查看详细条带状态
+zpool iostat -v rpool               # 查看条带性能统计
+sudo smartctl -a /dev/sda           # 检查磁盘健康（关键！）
+sudo smartctl -a /dev/sdb           # 检查磁盘健康（关键！）
+
+# 定时器管理
+systemctl list-timers | grep zfs     # 查看ZFS定时器
+sudo systemctl start zfs-scrub-weekly@rpool.service   # 手动执行scrub
+sudo systemctl start zfs-trim@rpool.service    # 手动执行trim
+
+# 快照管理
+sudo zfs snapshot rpool/ROOT/debian@backup-$(date +%Y%m%d)   # 创建快照
+zfs list -t snapshot                 # 查看快照
+
+# 性能监控
+zpool iostat 1           # 实时I/O统计
+sudo zfs get compressratio rpool/ROOT/debian    # 查看压缩比
+
+# SMB共享管理
+zfs get sharesmb rpool/share            # 查看SMB共享配置
+sudo systemctl status smbd              # 检查SMB服务状态
+smbclient -L localhost -U username      # 查看共享列表
+sudo smbpasswd -a username              # 添加SMB用户
+ls -la /share                          # 检查共享目录权限
+
+# SMB共享管理
+zfs get sharesmb rpool/share            # 查看ZFS SMB共享配置
+sudo systemctl status smbd              # 检查SMB服务状态
+sudo testparm -s                       # 验证Samba配置语法
+smbclient -L localhost -U username      # 查看共享列表
+sudo smbstatus                          # 查看当前SMB连接状态
+ls -la /share                          # 检查共享目录权限
+
+# SMB用户管理
+sudo pdbedit -L                         # 查看所有SMB用户
+sudo smbpasswd -a username              # 添加SMB用户
+sudo smbpasswd username                 # 更改SMB用户密码
+sudo smbpasswd -d username              # 禁用SMB用户
+sudo smbpasswd -e username              # 启用SMB用户
+sudo smbpasswd -x username              # 删除SMB用户
+
+# 维护操作
+sudo zpool status -v     # 详细池状态
+sudo journalctl -u zfs-import-cache.service   # 查看ZFS日志
+```

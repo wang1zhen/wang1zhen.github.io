@@ -302,10 +302,11 @@ zfs create \
     -o setuid=off \
     zroot/tmp
 
-# 创建SMB共享数据集 - 私有共享
+# 创建SMB共享数据集 - 私有共享，性能优化
 zfs create \
     -o mountpoint=/share \
-    -o sharesmb="name=share,guestok=false" \
+    -o sharesmb=on \
+    -o atime=off \
     zroot/share
 ```
 
@@ -592,8 +593,29 @@ chmod 755 /games
 chown 1000:1000 /share
 chmod 700 /share
 
+# 配置Samba配置文件
+cat > /etc/samba/smb.conf << 'EOF'
+[global]
+    workgroup = WORKGROUP
+    security = user
+    map to guest = never
+    server string = Arch ZFS Server
+
+[share]
+    path = /share
+    guest ok = no
+    read only = no
+    valid users = username
+    comment = Private ZFS Share
+    create mask = 0660
+    directory mask = 0770
+EOF
+
 # 为用户设置SMB密码（请替换username为实际用户名）
 smbpasswd -a username
+
+# 验证Samba配置
+testparm -s
 
 # 启用SMB服务
 systemctl enable smb
@@ -984,6 +1006,9 @@ sudo systemctl status nmb
 # 验证ZFS SMB共享配置
 zfs get sharesmb zroot/share
 
+# 验证Samba配置文件语法
+sudo testparm -s
+
 # 查看共享列表
 smbclient -L localhost -U username
 
@@ -991,6 +1016,40 @@ smbclient -L localhost -U username
 ls -la /share
 
 echo "SMB共享验证完成"
+```
+
+
+### SMB用户管理 {#smb用户管理}
+
+```sh
+# 查看当前所有SMB用户
+sudo pdbedit -L
+
+# 查看特定用户的详细信息
+sudo pdbedit -L -v -u username
+
+# 添加新的SMB用户（用户必须先是系统用户）
+sudo smbpasswd -a new_username
+
+# 更改SMB用户密码
+sudo smbpasswd username
+
+# 禁用SMB用户（不删除）
+sudo smbpasswd -d username
+
+# 启用被禁用的SMB用户
+sudo smbpasswd -e username
+
+# 删除SMB用户
+sudo smbpasswd -x username
+
+# 检查SMB配置是否合法
+sudo testparm
+
+# 查看当前SMB连接状态
+sudo smbstatus
+
+echo "SMB用户管理完成"
 ```
 
 
@@ -1385,11 +1444,20 @@ cat /proc/spl/kstat/zfs/arcstats | grep size  # ARC缓存大小
 sudo zfs get compressratio zroot/ROOT/root    # 查看压缩比
 
 # SMB共享管理
-zfs get sharesmb zroot/share            # 查看SMB共享配置
+zfs get sharesmb zroot/share            # 查看ZFS SMB共享配置
 sudo systemctl status smb               # 检查SMB服务状态
+sudo testparm -s                       # 验证Samba配置语法
 smbclient -L localhost -U username      # 查看共享列表
-sudo smbpasswd -a username              # 添加SMB用户
+sudo smbstatus                          # 查看当前SMB连接状态
 ls -la /share                          # 检查共享目录权限
+
+# SMB用户管理
+sudo pdbedit -L                         # 查看所有SMB用户
+sudo smbpasswd -a username              # 添加SMB用户
+sudo smbpasswd username                 # 更改SMB用户密码
+sudo smbpasswd -d username              # 禁用SMB用户
+sudo smbpasswd -e username              # 启用SMB用户
+sudo smbpasswd -x username              # 删除SMB用户
 
 # 维护操作
 sudo zpool status -v     # 详细池状态（包含scrub信息）
