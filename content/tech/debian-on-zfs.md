@@ -1,7 +1,7 @@
 +++
 title = "Debian on zfs 在 zfs 上安装 Debian linux"
 author = ["wang1zhen"]
-date = 2025-09-06T17:21:00+09:00
+date = 2025-09-06T21:55:00+09:00
 draft = false
 +++
 
@@ -177,7 +177,7 @@ apt update
 ```sh
 # 安装必要工具和依赖
 apt install -y linux-headers-$(uname -r) build-essential \
-               debootstrap arch-install-scripts
+               debootstrap arch-install-scripts gdisk
 
 # 安装ZFS相关包
 apt install -y zfsutils-linux zfs-dkms
@@ -1056,8 +1056,8 @@ echo "执行: sudo systemctl hibernate"
 ### 配置zram压缩内存交换 {#配置zram压缩内存交换}
 
 ```sh
-# 安装zram-generator（现代统一的zram管理工具）
-sudo apt install -y zram-generator
+# 安装systemd-zram-generator（现代统一的zram管理工具）
+sudo apt install -y systemd-zram-generator
 
 # 配置zram
 sudo tee /etc/systemd/zram-generator.conf << 'EOF'
@@ -1289,4 +1289,92 @@ sudo smbpasswd -x username              # 删除SMB用户
 # 维护操作
 sudo zpool status -v     # 详细池状态
 sudo journalctl -u zfs-import-cache.service   # 查看ZFS日志
+```
+
+
+## 附录：NVIDIA显卡禁用配置 {#附录-nvidia显卡禁用配置}
+
+NVIDIA显卡使用开源驱动nouveau可能导致hibernate无法正常工作，因此在启用休眠功能的系统上建议禁用NVIDIA显卡以确保休眠稳定性。
+
+
+### 禁用NVIDIA显卡（使用bbswitch） {#禁用nvidia显卡-使用bbswitch}
+
+```sh
+# 禁用nouveau驱动
+echo "blacklist nouveau" | sudo tee /etc/modprobe.d/blacklist-nouveau.conf
+echo "options nouveau modeset=0" | sudo tee -a /etc/modprobe.d/blacklist-nouveau.conf
+sudo update-initramfs -u
+sudo reboot
+
+# 安装bbswitch
+sudo apt install bbswitch-dkms
+
+# 加载bbswitch模块
+sudo modprobe bbswitch
+
+# 关闭NVIDIA GPU
+echo "OFF" | sudo tee /proc/acpi/bbswitch
+
+# 检查状态（应该显示"OFF"）
+cat /proc/acpi/bbswitch
+
+# 使配置永久生效
+echo "bbswitch" | sudo tee -a /etc/modules
+echo "options bbswitch load_state=0 unload_state=0" | sudo tee /etc/modprobe.d/bbswitch.conf
+```
+
+
+### 验证NVIDIA显卡禁用状态 {#验证nvidia显卡禁用状态}
+
+```sh
+# 检查bbswitch状态
+cat /proc/acpi/bbswitch
+
+# 检查PCI设备状态
+lspci | grep -i nvidia
+
+# 检查模块加载状态
+lsmod | grep -E "(nouveau|nvidia|bbswitch)"
+
+# 检查电源管理
+sudo powertop
+```
+
+
+## 附录：Micron 2100 NVMe硬盘优化 {#附录-micron-2100-nvme硬盘优化}
+
+
+### 添加内核参数解决延迟问题 {#添加内核参数解决延迟问题}
+
+```sh
+# 针对Micron 2100 NVMe硬盘，可能需要禁用电源管理以避免延迟问题
+# 编辑GRUB配置文件
+sudo nano /etc/default/grub
+
+# 在GRUB_CMDLINE_LINUX行中添加参数：
+# GRUB_CMDLINE_LINUX="root=ZFS=rpool/ROOT/debian nvme_core.default_ps_max_latency_us=0"
+
+# 或者使用sed自动添加参数
+sudo sed -i 's|GRUB_CMDLINE_LINUX="root=ZFS=rpool/ROOT/debian"|GRUB_CMDLINE_LINUX="root=ZFS=rpool/ROOT/debian nvme_core.default_ps_max_latency_us=0"|' /etc/default/grub
+
+# 更新GRUB配置
+sudo update-grub
+
+# 重启系统使参数生效
+sudo reboot
+```
+
+
+### 验证内核参数生效 {#验证内核参数生效}
+
+```sh
+# 检查当前内核参数
+cat /proc/cmdline
+
+# 检查NVMe设备状态
+lspci | grep -i nvme
+nvme list
+
+# 检查NVMe电源管理状态
+cat /sys/module/nvme_core/parameters/default_ps_max_latency_us
 ```

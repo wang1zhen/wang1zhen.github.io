@@ -1,7 +1,7 @@
 +++
 title = "arch on zfs 在 zfs 上安装 archlinux"
 author = ["wang1zhen"]
-date = 2025-09-06T17:22:00+09:00
+date = 2025-09-06T21:55:00+09:00
 draft = false
 +++
 
@@ -1533,4 +1533,73 @@ sudo zpool status -v     # 详细池状态（包含scrub信息）
 sudo zpool status -t     # 查看trim状态
 sudo journalctl -u zfs-scrub-monthly@zroot.service   # 查看scrub日志
 sudo journalctl -u zfs-trim@zroot.service    # 查看trim日志
+```
+
+
+## 附录：休眠唤醒设备管理 {#附录-休眠唤醒设备管理}
+
+
+### 配置休眠唤醒设备（仅电源键唤醒） {#配置休眠唤醒设备-仅电源键唤醒}
+
+在某些系统上，键盘、鼠标等USB设备可能会意外唤醒休眠状态，导致电池耗尽。以下配置确保只有电源键能够唤醒系统。
+
+```sh
+# 查看当前唤醒设备状态
+cat /proc/acpi/wakeup
+
+# 禁用USB控制器唤醒功能
+# 根据你的系统，可能需要禁用以下设备（示例）：
+echo XHC0 | sudo tee /proc/acpi/wakeup  # USB3.0 控制器1
+echo XHC1 | sudo tee /proc/acpi/wakeup  # USB3.0 控制器2
+echo XHC2 | sudo tee /proc/acpi/wakeup  # USB3.0 控制器3
+echo XH00 | sudo tee /proc/acpi/wakeup  # USB控制器
+
+# 验证设置（disabled表示已禁用唤醒）
+cat /proc/acpi/wakeup
+```
+
+
+### 创建系统服务持久化配置 {#创建系统服务持久化配置}
+
+```sh
+# 创建systemd服务来持久化唤醒设备配置
+sudo tee /etc/systemd/system/disable-wakeup.service << 'EOF'
+[Unit]
+Description=Disable USB device wakeup for hibernation
+After=multi-user.target
+
+[Service]
+Type=oneshot
+ExecStart=/bin/bash -c 'echo XHC0 > /proc/acpi/wakeup; echo XHC1 > /proc/acpi/wakeup; echo XHC2 > /proc/acpi/wakeup; echo XH00 > /proc/acpi/wakeup'
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+# 启用服务
+sudo systemctl enable disable-wakeup.service
+sudo systemctl start disable-wakeup.service
+
+# 验证服务状态
+sudo systemctl status disable-wakeup.service
+```
+
+
+### 测试休眠唤醒功能 {#测试休眠唤醒功能}
+
+```sh
+# 休眠系统
+sudo systemctl hibernate
+
+# 休眠后，尝试以下操作验证：
+# 1. 按键盘任意键 - 应该无法唤醒
+# 2. 移动鼠标 - 应该无法唤醒
+# 3. 按电源键 - 应该能正常唤醒系统
+
+# 唤醒后检查休眠日志
+sudo journalctl -b | grep -i hibernate
+
+# 检查唤醒设备状态是否保持
+cat /proc/acpi/wakeup | grep -E "(XHC|XH00)"
 ```

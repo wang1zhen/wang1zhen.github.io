@@ -560,7 +560,7 @@
    In this example, the Wi-Fi adapter is located under `0009`. Modify the key to match the specific adapter on your machine.
 
 * DONE arch on zfs 在 zfs 上安装 archlinux
-  CLOSED: [2025-09-06 Sat 17:22]
+  CLOSED: [2025-09-06 Sat 21:55]
   :PROPERTIES:
   :EXPORT_FILE_NAME: arch-on-zfs
   :END:
@@ -1949,9 +1949,71 @@
      sudo journalctl -u zfs-trim@zroot.service    # 查看trim日志
    #+end_src
 
+** 附录：休眠唤醒设备管理
+*** 配置休眠唤醒设备（仅电源键唤醒）
+
+ 在某些系统上，键盘、鼠标等USB设备可能会意外唤醒休眠状态，导致电池耗尽。以下配置确保只有电源键能够唤醒系统。
+
+    #+begin_src sh
+      # 查看当前唤醒设备状态
+      cat /proc/acpi/wakeup
+
+      # 禁用USB控制器唤醒功能
+      # 根据你的系统，可能需要禁用以下设备（示例）：
+      echo XHC0 | sudo tee /proc/acpi/wakeup  # USB3.0 控制器1
+      echo XHC1 | sudo tee /proc/acpi/wakeup  # USB3.0 控制器2
+      echo XHC2 | sudo tee /proc/acpi/wakeup  # USB3.0 控制器3
+      echo XH00 | sudo tee /proc/acpi/wakeup  # USB控制器
+
+      # 验证设置（disabled表示已禁用唤醒）
+      cat /proc/acpi/wakeup
+    #+end_src
+
+*** 创建系统服务持久化配置
+    #+begin_src sh
+      # 创建systemd服务来持久化唤醒设备配置
+      sudo tee /etc/systemd/system/disable-wakeup.service << 'EOF'
+      [Unit]
+      Description=Disable USB device wakeup for hibernation
+      After=multi-user.target
+
+      [Service]
+      Type=oneshot
+      ExecStart=/bin/bash -c 'echo XHC0 > /proc/acpi/wakeup; echo XHC1 > /proc/acpi/wakeup; echo XHC2 > /proc/acpi/wakeup; echo XH00 > /proc/acpi/wakeup'
+      RemainAfterExit=yes
+
+      [Install]
+      WantedBy=multi-user.target
+      EOF
+
+      # 启用服务
+      sudo systemctl enable disable-wakeup.service
+      sudo systemctl start disable-wakeup.service
+
+      # 验证服务状态
+      sudo systemctl status disable-wakeup.service
+    #+end_src
+
+*** 测试休眠唤醒功能
+    #+begin_src sh
+      # 休眠系统
+      sudo systemctl hibernate
+
+      # 休眠后，尝试以下操作验证：
+      # 1. 按键盘任意键 - 应该无法唤醒
+      # 2. 移动鼠标 - 应该无法唤醒
+      # 3. 按电源键 - 应该能正常唤醒系统
+
+      # 唤醒后检查休眠日志
+      sudo journalctl -b | grep -i hibernate
+
+      # 检查唤醒设备状态是否保持
+      cat /proc/acpi/wakeup | grep -E "(XHC|XH00)"
+    #+end_src
+
 
 * DONE Debian on zfs 在 zfs 上安装 Debian linux
-  CLOSED: [2025-09-06 Sat 17:21]
+  CLOSED: [2025-09-06 Sat 21:55]
   :PROPERTIES:
   :EXPORT_FILE_NAME: debian-on-zfs
   :END:
@@ -2093,7 +2155,7 @@
     #+begin_src sh
       # 安装必要工具和依赖
       apt install -y linux-headers-$(uname -r) build-essential \
-                     debootstrap arch-install-scripts
+                     debootstrap arch-install-scripts gdisk
 
       # 安装ZFS相关包
       apt install -y zfsutils-linux zfs-dkms
@@ -2884,8 +2946,8 @@
 
 *** 配置zram压缩内存交换
     #+begin_src sh
-      # 安装zram-generator（现代统一的zram管理工具）
-      sudo apt install -y zram-generator
+      # 安装systemd-zram-generator（现代统一的zram管理工具）
+      sudo apt install -y systemd-zram-generator
 
       # 配置zram
       sudo tee /etc/systemd/zram-generator.conf << 'EOF'
@@ -3099,3 +3161,80 @@
      sudo zpool status -v     # 详细池状态
      sudo journalctl -u zfs-import-cache.service   # 查看ZFS日志
    #+end_src
+
+** 附录：NVIDIA显卡禁用配置
+
+ NVIDIA显卡使用开源驱动nouveau可能导致hibernate无法正常工作，因此在启用休眠功能的系统上建议禁用NVIDIA显卡以确保休眠稳定性。
+
+*** 禁用NVIDIA显卡（使用bbswitch）
+    #+begin_src sh
+      # 禁用nouveau驱动
+      echo "blacklist nouveau" | sudo tee /etc/modprobe.d/blacklist-nouveau.conf
+      echo "options nouveau modeset=0" | sudo tee -a /etc/modprobe.d/blacklist-nouveau.conf
+      sudo update-initramfs -u
+      sudo reboot
+
+      # 安装bbswitch
+      sudo apt install bbswitch-dkms
+
+      # 加载bbswitch模块
+      sudo modprobe bbswitch
+
+      # 关闭NVIDIA GPU
+      echo "OFF" | sudo tee /proc/acpi/bbswitch
+
+      # 检查状态（应该显示"OFF"）
+      cat /proc/acpi/bbswitch
+
+      # 使配置永久生效
+      echo "bbswitch" | sudo tee -a /etc/modules
+      echo "options bbswitch load_state=0 unload_state=0" | sudo tee /etc/modprobe.d/bbswitch.conf
+    #+end_src
+
+*** 验证NVIDIA显卡禁用状态
+    #+begin_src sh
+      # 检查bbswitch状态
+      cat /proc/acpi/bbswitch
+
+      # 检查PCI设备状态
+      lspci | grep -i nvidia
+
+      # 检查模块加载状态
+      lsmod | grep -E "(nouveau|nvidia|bbswitch)"
+
+      # 检查电源管理
+      sudo powertop
+    #+end_src
+
+** 附录：Micron 2100 NVMe硬盘优化
+*** 添加内核参数解决延迟问题
+    #+begin_src sh
+      # 针对Micron 2100 NVMe硬盘，可能需要禁用电源管理以避免延迟问题
+      # 编辑GRUB配置文件
+      sudo nano /etc/default/grub
+
+      # 在GRUB_CMDLINE_LINUX行中添加参数：
+      # GRUB_CMDLINE_LINUX="root=ZFS=rpool/ROOT/debian nvme_core.default_ps_max_latency_us=0"
+
+      # 或者使用sed自动添加参数
+      sudo sed -i 's|GRUB_CMDLINE_LINUX="root=ZFS=rpool/ROOT/debian"|GRUB_CMDLINE_LINUX="root=ZFS=rpool/ROOT/debian nvme_core.default_ps_max_latency_us=0"|' /etc/default/grub
+
+      # 更新GRUB配置
+      sudo update-grub
+
+      # 重启系统使参数生效
+      sudo reboot
+    #+end_src
+
+*** 验证内核参数生效
+    #+begin_src sh
+      # 检查当前内核参数
+      cat /proc/cmdline
+
+      # 检查NVMe设备状态
+      lspci | grep -i nvme
+      nvme list
+
+      # 检查NVMe电源管理状态
+      cat /sys/module/nvme_core/parameters/default_ps_max_latency_us
+    #+end_src
