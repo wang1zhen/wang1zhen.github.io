@@ -1,7 +1,7 @@
 +++
 title = "arch on zfs 在 zfs 上安装 archlinux"
 author = ["wang1zhen"]
-date = 2025-09-04T23:26:00+09:00
+date = 2025-09-06T17:22:00+09:00
 draft = false
 +++
 
@@ -1178,6 +1178,69 @@ sudo systemctl hibernate
 ```
 
 
+### 配置zram压缩内存交换 {#配置zram压缩内存交换}
+
+```sh
+# 安装zram-generator（现代统一的zram管理工具）
+sudo pacman -S zram-generator
+
+# 配置zram
+sudo tee /etc/systemd/zram-generator.conf << 'EOF'
+# zram配置文件
+
+[zram0]
+# zram设备大小（总内存的百分比或绝对值）
+# 建议设置为总内存的25-50%
+zram-size = ram * 0.25
+
+# 压缩算法（lz4, lzo, zstd）
+compression-algorithm = zstd
+
+# 交换优先级（高于磁盘交换）
+swap-priority = 100
+
+# 文件系统类型
+fs-type = swap
+EOF
+
+# 启动zram设备
+sudo systemctl daemon-reload
+sudo systemctl start systemd-zram-setup@zram0.service
+sudo systemctl enable systemd-zram-setup@zram0.service
+
+# 验证zram配置
+echo "zram配置完成，当前状态:"
+sudo zramctl
+swapon --show
+```
+
+
+### 优化zram和磁盘交换配置 {#优化zram和磁盘交换配置}
+
+```sh
+# 查看当前交换配置
+swapon --show
+cat /proc/swaps
+
+# 确认zram优先级高于磁盘交换
+# zram应该显示更高的优先级数值
+
+# 设置内存交换倾向性（可选）
+# 数值越低，越倾向于使用内存而非交换
+echo 'vm.swappiness=10' | sudo tee -a /etc/sysctl.conf
+
+# 立即应用设置
+sudo sysctl vm.swappiness=10
+
+# 验证设置
+cat /proc/sys/vm/swappiness
+
+echo "zram和交换优化完成"
+echo "zram设备: $(sudo zramctl --output-all | grep -c zram)"
+echo "总交换空间: $(free -h | grep Swap | awk '{print $2}')"
+```
+
+
 ## 第十部分：ZFS维护管理 {#第十部分-zfs维护管理}
 
 
@@ -1432,6 +1495,12 @@ sudo systemctl start zfs-trim@zroot.service    # 手动执行trim
 
 # Hibernation
 sudo systemctl hibernate # 休眠系统
+
+# zram管理
+sudo zramctl                               # 查看zram设备状态
+sudo systemctl status systemd-zram-setup@zram0.service  # 查看zram服务状态
+cat /proc/sys/vm/swappiness               # 查看交换倾向性设置
+swapon --show                             # 显示所有交换设备（包括zram）
 
 # 快照管理
 sudo /usr/local/bin/zfs-pacman-snapshot pre   # 手动创建pre快照

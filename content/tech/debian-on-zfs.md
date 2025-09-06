@@ -1,7 +1,7 @@
 +++
 title = "Debian on zfs 在 zfs 上安装 Debian linux"
 author = ["wang1zhen"]
-date = 2025-09-05T00:43:00+09:00
+date = 2025-09-06T17:21:00+09:00
 draft = false
 +++
 
@@ -85,66 +85,74 @@ lsblk
 fdisk -l
 ```
 
-以下示例假设两个目标磁盘为 `/dev/sda` 和 =/dev/sdb=，请根据实际情况调整。
+以下示例假设两个目标磁盘为 `/dev/nvme0n1` 和 =/dev/nvme1n1=，请根据实际情况调整。
+
+
+### 设置磁盘变量 {#设置磁盘变量}
+
+```sh
+# 设置磁盘设备变量（使用by-id路径，请根据实际情况调整）
+DISK1=/dev/disk/by-id/nvme-SAMSUNG_SSD_980_1TB_S649NJ0R123456A
+DISK2=/dev/disk/by-id/nvme-SAMSUNG_SSD_980_1TB_S649NJ0R123456B
+
+echo "DISK1: $DISK1"
+echo "DISK2: $DISK2"
+```
 
 
 ### 创建GPT分区表（两块磁盘） {#创建gpt分区表-两块磁盘}
 
-对每块磁盘执行以下操作：
+\*\*第一块磁盘\*\*（包含启动分区）：
 
 ```sh
-# 第一块磁盘
-gdisk /dev/sda
+# 清除现有分区表并创建新的GPT分区表
+sgdisk --zap-all $DISK1
 
-# 第二块磁盘
-gdisk /dev/sdb
+# 创建EFI系统分区 (1G)
+sgdisk -n 1:1M:+1G -t 1:EF00 -c 1:"EFI System Partition" $DISK1
+
+# 创建交换分区 (16G)
+sgdisk -n 2:0:+16G -t 2:8200 -c 2:"Linux swap" $DISK1
+
+# 创建ZFS根分区（剩余空间）
+sgdisk -n 3:0:0 -t 3:BF00 -c 3:"ZFS Root" $DISK1
+
+# 显示分区信息
+sgdisk -p $DISK1
 ```
 
-在gdisk中对每块磁盘执行以下操作：
+\*\*第二块磁盘\*\*（仅ZFS存储）：
 
-1.  输入 `o` 创建新的GPT分区表
-2.  创建EFI系统分区：
-    -   输入 `n` 创建新分区
-    -   分区号：1（默认）
-    -   起始扇区：默认
-    -   结束扇区：+1G
-    -   分区类型：ef00（EFI System Partition）
-3.  创建交换分区：
-    -   输入 `n` 创建新分区
-    -   分区号：2（默认）
-    -   起始扇区：默认
-    -   结束扇区：+32G
-    -   分区类型：8200（Linux swap）
-4.  创建ZFS根分区：
-    -   输入 `n` 创建新分区
-    -   分区号：3（默认）
-    -   起始扇区：默认
-    -   结束扇区：默认（使用剩余空间）
-    -   分区类型：bf00（Solaris Root）
-5.  输入 `w` 写入分区表并退出
+```sh
+# 清除现有分区表并创建新的GPT分区表
+sgdisk --zap-all $DISK2
+
+# 创建ZFS根分区（全部空间）
+sgdisk -n 1:1M:0 -t 1:BF00 -c 1:"ZFS Root" $DISK2
+
+# 显示分区信息
+sgdisk -p $DISK2
+```
 
 
 ### 格式化EFI和交换分区 {#格式化efi和交换分区}
 
 ```sh
-# 格式化EFI分区（两块磁盘）
-mkfs.fat -F32 /dev/sda1
-mkfs.fat -F32 /dev/sdb1
+# 格式化EFI分区
+mkfs.fat -F32 ${DISK1}-part1
 
-# 设置交换分区（两块磁盘）
-mkswap /dev/sda2
-mkswap /dev/sdb2
+# 设置交换分区
+mkswap ${DISK1}-part2
 
 # 启用交换分区
-swapon /dev/sda2
-swapon /dev/sdb2
+swapon ${DISK1}-part2
 ```
 
 
 ### 查看磁盘ID {#查看磁盘id}
 
 ```sh
-ls -lh /dev/disk/by-id/ | grep -E "(sda|sdb)"
+ls -lh /dev/disk/by-id/ | grep -E "(nvme0n1|nvme1n1)"
 ```
 
 记录两块目标磁盘的by-id路径，用于ZFS RAIDZ0配置。
@@ -167,6 +175,10 @@ apt update
 ### 安装ZFS包 {#安装zfs包}
 
 ```sh
+# 安装必要工具和依赖
+apt install -y linux-headers-$(uname -r) build-essential \
+               debootstrap arch-install-scripts
+
 # 安装ZFS相关包
 apt install -y zfsutils-linux zfs-dkms
 
@@ -202,8 +214,8 @@ zpool create -f \
       -O recordsize=128K \
       -R /mnt \
       rpool \
-      /dev/disk/by-id/ata-DISK1-SERIAL-part3 \
-      /dev/disk/by-id/ata-DISK2-SERIAL-part3
+      ${DISK1}-part3 \
+      ${DISK2}-part1
 ```
 
 \*\*重要警告\*\*：这是RAID0条带配置，提供2x容量和更好的性能，但\*\*没有冗余保护\*\*。任何一块磁盘故障都会导致整个池的数据丢失！
@@ -310,11 +322,11 @@ mount | grep zfs
 ## 第六部分：安装Debian系统 {#第六部分-安装debian系统}
 
 
-### 挂载EFI分区 {#挂载efi分区}
+### 挂载EFI分区作为/boot {#挂载efi分区作为-boot}
 
 ```sh
-mkdir -p /mnt/boot/efi
-mount /dev/sda1 /mnt/boot/efi
+mkdir -p /mnt/boot
+mount ${DISK1}-part1 /mnt/boot
 ```
 
 
@@ -322,7 +334,7 @@ mount /dev/sda1 /mnt/boot/efi
 
 ```sh
 # 使用debootstrap安装基础系统
-debootstrap --include=openssh-server,vim,curl,wget \
+debootstrap --include=openssh-server,vim,curl,wget,locales \
             trixie /mnt http://deb.debian.org/debian/
 ```
 
@@ -330,18 +342,13 @@ debootstrap --include=openssh-server,vim,curl,wget \
 ### 配置系统挂载点 {#配置系统挂载点}
 
 ```sh
-# 生成fstab
-cat > /mnt/etc/fstab << EOF
-# EFI分区
-/dev/sda1 /boot/efi vfat defaults 0 2
+# 使用genfstab自动生成fstab（ZFS数据集会被自动处理）
+genfstab -U /mnt >> /mnt/etc/fstab
 
-# 交换分区
-/dev/sda2 none swap sw 0 0
-/dev/sdb2 none swap sw 0 0
+# 检查生成的fstab
+cat /mnt/etc/fstab
 
-# tmpfs
-tmpfs /tmp tmpfs defaults,nodev,nosuid 0 0
-EOF
+# 注意：ZFS数据集（包括/tmp）不需要在fstab中配置，ZFS会自动管理
 ```
 
 
@@ -351,14 +358,8 @@ EOF
 ### 进入chroot环境 {#进入chroot环境}
 
 ```sh
-# 挂载必要的虚拟文件系统
-mount --bind /dev /mnt/dev
-mount --bind /dev/pts /mnt/dev/pts
-mount --bind /proc /mnt/proc
-mount --bind /sys /mnt/sys
-
-# 进入chroot
-chroot /mnt /bin/bash
+# 使用arch-chroot（自动处理虚拟文件系统挂载）
+arch-chroot /mnt
 ```
 
 
@@ -367,7 +368,6 @@ chroot /mnt /bin/bash
 ```sh
 # 设置时区
 ln -sf /usr/share/zoneinfo/Asia/Tokyo /etc/localtime
-hwclock --systohc
 
 # 配置语言环境
 cat > /etc/locale.gen << EOF
@@ -419,10 +419,10 @@ apt update
 ```sh
 # 安装内核和ZFS支持
 apt install -y linux-image-amd64 linux-headers-amd64 \
-    zfsutils-linux zfs-dkms \
+    zfsutils-linux zfs-dkms zfs-initramfs \
     grub-efi-amd64 grub-efi-amd64-signed \
     shim-signed efibootmgr \
-    firmware-linux firmware-linux-nonfree \
+    firmware-linux firmware-linux-nonfree firmware-iwlwifi \
     network-manager systemd-resolved \
     samba samba-common-bin
 
@@ -434,11 +434,22 @@ apt install -y amd64-microcode
 ```
 
 
+### 安装桌面环境（可选） {#安装桌面环境-可选}
+
+```sh
+# GNOME桌面环境
+apt install -y task-gnome-desktop
+
+# 或者KDE Plasma
+# apt install -y task-kde-desktop
+```
+
+
 ### 配置ZFS服务 {#配置zfs服务}
 
 ```sh
-# 生成host ID
-zgenhostid
+# 生成host ID（强制覆盖）
+zgenhostid $(hostid) -f
 
 # 确保ZFS缓存目录存在
 mkdir -p /etc/zfs
@@ -464,24 +475,23 @@ update-initramfs -c -k all
 ```
 
 
-### 安装和配置GRUB {#安装和配置grub}
+### 配置GRUB {#配置grub}
 
 ```sh
-# 安装GRUB到EFI分区
-grub-install --target=x86_64-efi --efi-directory=/boot/efi --bootloader-id=debian
-
 # 配置GRUB
 cat > /etc/default/grub << EOF
 GRUB_DEFAULT=0
 GRUB_TIMEOUT=5
-GRUB_DISTRIBUTOR="Debian"
+GRUB_DISTRIBUTOR=\`( . /etc/os-release && echo \${NAME} )\`
 GRUB_CMDLINE_LINUX_DEFAULT="quiet"
 GRUB_CMDLINE_LINUX="root=ZFS=rpool/ROOT/debian"
-GRUB_PRELOAD_MODULES="zfs"
 EOF
 
 # 生成GRUB配置
 update-grub
+
+# 安装GRUB到EFI分区（/boot就是EFI分区）
+grub-install --target=x86_64-efi --efi-directory=/boot --bootloader-id=debian
 ```
 
 
@@ -607,17 +617,11 @@ echo "ZFS定期维护服务配置完成"
 ### 退出chroot并清理 {#退出chroot并清理}
 
 ```sh
-# 退出chroot环境
+# 退出chroot环境（按Ctrl+D或输入exit）
 exit
 
-# 卸载虚拟文件系统
-umount /mnt/dev/pts
-umount /mnt/dev
-umount /mnt/proc
-umount /mnt/sys
-
-# 卸载EFI分区
-umount /mnt/boot/efi
+# arch-chroot会自动清理虚拟文件系统，只需卸载EFI分区
+umount /mnt/boot
 
 # 卸载ZFS文件系统
 zfs umount -a
@@ -735,21 +739,384 @@ sudo apt update && sudo apt upgrade -y
 ```
 
 
-### 安装桌面环境（可选） {#安装桌面环境-可选}
+### 安装zrepl自动快照系统 {#安装zrepl自动快照系统}
 
 ```sh
-# GNOME桌面环境
-sudo apt install -y task-gnome-desktop
+# 使用官方APT仓库安装zrepl
+(
+set -ex
+zrepl_apt_key_url=https://zrepl.cschwarz.com/apt/apt-key.asc
+zrepl_apt_key_dst=/usr/share/keyrings/zrepl.gpg
+zrepl_apt_repo_file=/etc/apt/sources.list.d/zrepl.list
 
-# 或者KDE Plasma
-# sudo apt install -y task-kde-desktop
+# Install dependencies for subsequent commands
+sudo apt update && sudo apt install curl gnupg lsb-release
 
-# 启用图形登录管理器
-sudo systemctl enable gdm3
+# Deploy the zrepl apt key.
+curl -fsSL "$zrepl_apt_key_url" | tee | gpg --dearmor | sudo tee "$zrepl_apt_key_dst" > /dev/null
+
+# Add the zrepl apt repo.
+ARCH="$(dpkg --print-architecture)"
+CODENAME="$(lsb_release -i -s | tr '[:upper:]' '[:lower:]') $(lsb_release -c -s | tr '[:upper:]' '[:lower:]')"
+echo "Using Distro and Codename: $CODENAME"
+echo "deb [arch=$ARCH signed-by=$zrepl_apt_key_dst] https://zrepl.cschwarz.com/apt/$CODENAME main" | sudo tee "$zrepl_apt_repo_file" > /dev/null
+
+# Update apt repos.
+sudo apt update
+)
+
+# 安装zrepl
+sudo apt install -y zrepl
 ```
 
 
-## 第十一部分：ZFS维护管理 {#第十一部分-zfs维护管理}
+### 配置zrepl自动快照系统 {#配置zrepl自动快照系统}
+
+```sh
+sudo tee /etc/zrepl/zrepl.yml << 'EOF'
+global:
+  logging:
+    - type: stdout
+      level: info
+      format: human
+
+jobs:
+  - name: "hourly_snapshots"
+    type: snap
+    filesystems: {
+      "rpool/ROOT<": true,
+      "rpool/home<": true,
+      "rpool/var<": true
+    }
+    snapshotting:
+      type: periodic
+      prefix: hourly_
+      interval: 1h
+    pruning:
+      keep:
+        - type: last_n
+          count: 24  # 保留最近24个小时快照
+
+  - name: "daily_snapshots"
+    type: snap
+    filesystems: {
+      "rpool/ROOT<": true,
+      "rpool/home<": true,
+      "rpool/var<": true
+    }
+    snapshotting:
+      type: periodic
+      prefix: daily_
+      interval: 24h
+    pruning:
+      keep:
+        - type: last_n
+          count: 30   # 保留最近30天的每日快照
+
+  - name: "weekly_snapshots"
+    type: snap
+    filesystems: {
+      "rpool/ROOT<": true,
+      "rpool/home<": true
+    }
+    snapshotting:
+      type: periodic
+      prefix: weekly_
+      interval: 168h
+    pruning:
+      keep:
+        - type: last_n
+          count: 12   # 保留最近12周的每周快照
+
+  - name: "monthly_snapshots"
+    type: snap
+    filesystems: {
+      "rpool/ROOT<": true,
+      "rpool/home<": true
+    }
+    snapshotting:
+      type: periodic
+      prefix: monthly_
+      interval: 720h
+    pruning:
+      keep:
+        - type: last_n
+          count: 12   # 保留最近12个月的每月快照
+EOF
+
+# 启用并启动zrepl服务
+sudo systemctl enable zrepl
+sudo systemctl start zrepl
+```
+
+
+## 第十一部分：创建APT快照管理系统 {#第十一部分-创建apt快照管理系统}
+
+
+### 创建快照管理脚本 {#创建快照管理脚本}
+
+```sh
+sudo tee /usr/local/bin/zfs-apt-snapshot << 'EOF'
+#!/bin/bash
+# ZFS APT快照管理脚本
+# 在每次apt操作前后创建快照，最多保留50个apt相关快照
+
+set -euo pipefail
+
+SNAPSHOT_PREFIX="apt"
+MAX_SNAPSHOTS=50
+DATASETS=("rpool/ROOT/debian" "rpool/var" "rpool/home")
+
+# 获取当前时间戳
+TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+
+# 日志函数
+log() {
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1" | sudo tee -a /var/log/zfs-apt-snapshots.log
+}
+
+# 创建快照函数
+create_snapshot() {
+    local phase=$1
+    local snapshot_name="${SNAPSHOT_PREFIX}_${phase}_${TIMESTAMP}"
+
+    log "开始创建 ${phase} 快照: ${snapshot_name}"
+
+    for dataset in "${DATASETS[@]}"; do
+        if zfs list -H -o name "$dataset" >/dev/null 2>&1; then
+            local full_snapshot_name="${dataset}@${snapshot_name}"
+            if zfs snapshot "$full_snapshot_name"; then
+                log "成功创建快照: $full_snapshot_name"
+            else
+                log "错误: 创建快照失败: $full_snapshot_name"
+            fi
+        else
+            log "警告: 数据集不存在: $dataset"
+        fi
+    done
+
+    log "完成创建 ${phase} 快照"
+}
+
+# 清理旧快照函数
+cleanup_snapshots() {
+    log "开始清理旧的apt快照"
+
+    for dataset in "${DATASETS[@]}"; do
+        if ! zfs list -H -o name "$dataset" >/dev/null 2>&1; then
+            continue
+        fi
+
+        # 获取所有apt快照，按创建时间排序（最新的在前）
+        local snapshots=($(zfs list -H -t snapshot -o name -s creation | grep "${dataset}@${SNAPSHOT_PREFIX}_" | head -n 100))
+        local snapshot_count=${#snapshots[@]}
+
+        if [ $snapshot_count -gt $MAX_SNAPSHOTS ]; then
+            log "数据集 $dataset 有 $snapshot_count 个apt快照，需要清理"
+
+            # 删除超出数量限制的快照（保留最新的MAX_SNAPSHOTS个）
+            local to_delete=$((snapshot_count - MAX_SNAPSHOTS))
+            local deleted_count=0
+
+            for ((i=$((snapshot_count-1)); i>=$((snapshot_count-to_delete)); i--)); do
+                if zfs destroy "${snapshots[$i]}"; then
+                    log "删除旧快照: ${snapshots[$i]}"
+                    ((deleted_count++))
+                else
+                    log "错误: 删除快照失败: ${snapshots[$i]}"
+                fi
+            done
+
+            log "数据集 $dataset 清理完成，删除了 $deleted_count 个旧快照"
+        else
+            log "数据集 $dataset 有 $snapshot_count 个apt快照，无需清理"
+        fi
+    done
+
+    log "快照清理完成"
+}
+
+# 主函数
+main() {
+    local phase=$1
+
+    # 确保日志目录存在
+    sudo mkdir -p "$(dirname /var/log/zfs-apt-snapshots.log)"
+
+    case "$phase" in
+        pre)
+            create_snapshot "pre"
+            ;;
+        post)
+            create_snapshot "post"
+            cleanup_snapshots
+            ;;
+        *)
+            echo "用法: $0 {pre|post}"
+            echo "  pre  - 在apt操作前创建快照"
+            echo "  post - 在apt操作后创建快照并清理旧快照"
+            exit 1
+            ;;
+    esac
+}
+
+# 执行主函数
+main "$@"
+EOF
+
+# 设置执行权限
+sudo chmod +x /usr/local/bin/zfs-apt-snapshot
+```
+
+
+### 创建APT钩子 {#创建apt钩子}
+
+```sh
+# 创建APT pre-invoke钩子
+sudo tee /etc/apt/apt.conf.d/00-zfs-snapshot-pre << 'EOF'
+DPkg::Pre-Invoke { "/usr/local/bin/zfs-apt-snapshot pre"; };
+EOF
+
+# 创建APT post-invoke钩子
+sudo tee /etc/apt/apt.conf.d/99-zfs-snapshot-post << 'EOF'
+DPkg::Post-Invoke { "/usr/local/bin/zfs-apt-snapshot post"; };
+EOF
+```
+
+
+### 测试快照系统 {#测试快照系统}
+
+```sh
+# 测试创建pre和post快照
+echo "测试创建快照..."
+sudo /usr/local/bin/zfs-apt-snapshot pre
+sleep 2
+sudo /usr/local/bin/zfs-apt-snapshot post
+
+echo "列出创建的快照:"
+zfs list -t snapshot | grep apt
+
+echo "删除测试快照..."
+zfs list -t snapshot | grep apt | awk '{print $1}' | xargs -r -n1 sudo zfs destroy
+
+echo "验证快照已删除:"
+zfs list -t snapshot | grep apt || echo "无apt快照，测试完成"
+
+# 验证zrepl服务状态
+sudo systemctl status zrepl
+```
+
+
+### 配置休眠支持（Hibernation） {#配置休眠支持-hibernation}
+
+```sh
+# 获取交换分区的UUID
+SWAP_UUID=$(blkid -s UUID -o value ${DISK1}-part2)
+echo "交换分区UUID: $SWAP_UUID"
+
+# 获取交换分区的偏移量（如果使用swapfile则需要）
+# 对于专用交换分区，通常偏移量为0
+
+# 更新GRUB配置以支持休眠
+sudo sed -i "s|GRUB_CMDLINE_LINUX=\"root=ZFS=rpool/ROOT/debian\"|GRUB_CMDLINE_LINUX=\"root=ZFS=rpool/ROOT/debian resume=UUID=$SWAP_UUID\"|" /etc/default/grub
+
+# 更新GRUB配置
+sudo update-grub
+
+# 配置initramfs以支持休眠恢复
+echo 'RESUME=UUID='$SWAP_UUID | sudo tee -a /etc/initramfs-tools/conf.d/resume
+
+# 更新initramfs
+sudo update-initramfs -u -k all
+```
+
+
+### 测试休眠功能 {#测试休眠功能}
+
+```sh
+# 检查交换分区状态
+swapon --show
+cat /proc/swaps
+
+# 检查休眠支持
+cat /sys/power/disk
+
+# 检查可用的睡眠模式
+cat /sys/power/state
+
+# 检查内存使用情况（确保交换分区足够大）
+free -h
+
+# 测试休眠（谨慎使用，确保保存了重要工作）
+echo "准备测试休眠，请确保保存了所有重要工作"
+echo "执行: sudo systemctl hibernate"
+```
+
+
+### 配置zram压缩内存交换 {#配置zram压缩内存交换}
+
+```sh
+# 安装zram-generator（现代统一的zram管理工具）
+sudo apt install -y zram-generator
+
+# 配置zram
+sudo tee /etc/systemd/zram-generator.conf << 'EOF'
+# zram配置文件
+
+[zram0]
+# zram设备大小（总内存的百分比或绝对值）
+# 建议设置为总内存的25-50%
+zram-size = ram * 0.25
+
+# 压缩算法（lz4, lzo, zstd）
+compression-algorithm = zstd
+
+# 交换优先级（高于磁盘交换）
+swap-priority = 100
+
+# 文件系统类型
+fs-type = swap
+EOF
+
+# 启动zram设备
+sudo systemctl daemon-reload
+sudo systemctl start systemd-zram-setup@zram0.service
+sudo systemctl enable systemd-zram-setup@zram0.service
+
+# 验证zram配置
+echo "zram配置完成，当前状态:"
+sudo zramctl
+swapon --show
+```
+
+
+### 优化zram和磁盘交换配置 {#优化zram和磁盘交换配置}
+
+```sh
+# 查看当前交换配置
+swapon --show
+cat /proc/swaps
+
+# 确认zram优先级高于磁盘交换
+# zram应该显示更高的优先级数值
+
+# 设置内存交换倾向性（可选）
+# 数值越低，越倾向于使用内存而非交换
+echo 'vm.swappiness=10' | sudo tee -a /etc/sysctl.conf
+
+# 立即应用设置
+sudo sysctl vm.swappiness=10
+
+# 验证设置
+cat /proc/sys/vm/swappiness
+
+echo "zram和交换优化完成"
+echo "zram设备: $(sudo zramctl --output-all | grep -c zram)"
+echo "总交换空间: $(free -h | grep Swap | awk '{print $2}')"
+```
+
+
+## 第十二部分：ZFS维护管理 {#第十二部分-zfs维护管理}
 
 
 ### 常用ZFS命令 {#常用zfs命令}
@@ -782,8 +1149,8 @@ zpool status -v rpool
 zpool iostat -v rpool
 
 # 检查磁盘健康状态（RAID0中任何磁盘故障都是致命的）
-sudo smartctl -a /dev/sda
-sudo smartctl -a /dev/sdb
+sudo smartctl -a $DISK1
+sudo smartctl -a $DISK2
 ```
 
 \*\*重要提醒\*\*：RAID0条带配置下：
@@ -808,7 +1175,7 @@ zfs get used,available,referenced,compressratio
 ```
 
 
-## 第十二部分：故障排除 {#第十二部分-故障排除}
+## 第十三部分：故障排除 {#第十三部分-故障排除}
 
 
 ### 常见问题 {#常见问题}
@@ -846,7 +1213,7 @@ sudo smartctl -a /dev/sdb
 2.  安装ZFS支持：=apt update &amp;&amp; apt install -y zfsutils-linux=
 3.  导入ZFS池：=zpool import -R /mnt rpool=
 4.  挂载文件系统：=zfs mount rpool/ROOT/debian &amp;&amp; zfs mount -a=
-5.  挂载EFI分区：=mount /dev/sda1 /mnt/boot/efi=
+5.  挂载EFI分区：=mount /dev/disk/by-id/nvme-SAMSUNG_SSD_980_1TB_S649NJ0R123456A-part1 /mnt/boot=
 6.  进入chroot：=chroot /mnt=
 7.  执行修复操作
 
@@ -863,8 +1230,8 @@ sudo zpool trim rpool    # 手动执行trim
 # RAID0条带管理
 sudo zpool status -v rpool           # 查看详细条带状态
 zpool iostat -v rpool               # 查看条带性能统计
-sudo smartctl -a /dev/sda           # 检查磁盘健康（关键！）
-sudo smartctl -a /dev/sdb           # 检查磁盘健康（关键！）
+sudo smartctl -a $DISK1             # 检查磁盘健康（关键！）
+sudo smartctl -a $DISK2             # 检查磁盘健康（关键！）
 
 # 定时器管理
 systemctl list-timers | grep zfs     # 查看ZFS定时器
@@ -874,6 +1241,23 @@ sudo systemctl start zfs-trim@rpool.service    # 手动执行trim
 # 快照管理
 sudo zfs snapshot rpool/ROOT/debian@backup-$(date +%Y%m%d)   # 创建快照
 zfs list -t snapshot                 # 查看快照
+sudo /usr/local/bin/zfs-apt-snapshot pre   # 手动创建pre快照
+tail -f /var/log/zfs-apt-snapshots.log     # 查看快照日志
+zfs list -t snapshot | grep apt            # 查看apt快照
+sudo systemctl status zrepl                # 查看zrepl状态
+sudo journalctl -u zrepl -f               # 查看zrepl实时日志
+
+# 休眠管理
+swapon --show                              # 检查交换分区状态
+sudo systemctl hibernate                  # 休眠系统
+cat /sys/power/state                      # 查看可用睡眠模式
+free -h                                   # 检查内存使用情况
+
+# zram管理
+sudo zramctl                               # 查看zram设备状态
+sudo systemctl status systemd-zram-setup@zram0.service  # 查看zram服务状态
+cat /proc/sys/vm/swappiness               # 查看交换倾向性设置
+sudo systemctl restart systemd-zram-setup@zram0.service # 重启zram服务
 
 # 性能监控
 zpool iostat 1           # 实时I/O统计
