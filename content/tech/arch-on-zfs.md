@@ -1,7 +1,7 @@
 +++
 title = "arch on zfs 在 zfs 上安装 archlinux"
 author = ["wang1zhen"]
-date = 2025-09-06T21:55:00+09:00
+date = 2025-09-14T05:57:00+09:00
 draft = false
 +++
 
@@ -261,53 +261,62 @@ zpool create -f \
 ### 创建ZFS数据集 {#创建zfs数据集}
 
 ```sh
-# 创建根容器数据集
-zfs create -o mountpoint=none zroot/ROOT
+ # 创建根容器数据集
+ zfs create -o mountpoint=none zroot/ROOT
 
-# 创建系统根数据集
-zfs create -o mountpoint=/ -o canmount=noauto zroot/ROOT/root
+ # 创建系统根数据集
+ zfs create -o mountpoint=/ -o canmount=noauto zroot/ROOT/root
 
-# 创建用户相关数据集
-zfs create -o mountpoint=/home zroot/home
+ # 创建用户相关数据集
+ zfs create -o mountpoint=/home zroot/home
 
-# 创建系统数据集
-zfs create -o mountpoint=/var zroot/var
-zfs create -o mountpoint=/var/log zroot/var/log
-zfs create -o mountpoint=/var/cache zroot/var/cache
+ # 创建系统数据集
+ zfs create -o mountpoint=/var zroot/var
+ zfs create -o mountpoint=/var/log zroot/var/log
+ zfs create -o mountpoint=/var/cache zroot/var/cache
 
-# 创建游戏数据集 - 大文件优化
+ # 创建游戏数据集 - 大文件优化
+ zfs create \
+     -o mountpoint=/games \
+     -o compression=zstd \
+     -o recordsize=1M \
+     -o atime=off \
+     zroot/games
+
+ # 创建 Podman 数据集（rootful）- 小文件优化
+ zfs create \
+     -o mountpoint=/var/lib/containers \
+     -o compression=zstd \
+     -o recordsize=64K \
+     -o atime=off \
+     zroot/containers
+
+# 创建 Podman 数据集（rootless，可选）
+# 设置变量：新系统的主要用户名（请替换为实际用户名）
+user_arch="YOUR_USERNAME"
+
 zfs create \
-    -o mountpoint=/games \
-    -o compression=zstd \
-    -o recordsize=1M \
-    -o atime=off \
-    zroot/games
-
-# 创建Docker数据集 - 小文件优化
-zfs create \
-    -o mountpoint=/var/lib/docker \
+    -o mountpoint="/home/${user_arch}/.local/share/containers" \
     -o compression=zstd \
     -o recordsize=64K \
     -o atime=off \
-    zroot/docker
+    zroot/containers-${user_arch}
+ # 创建临时文件数据集 - 性能优化
+ zfs create \
+     -o mountpoint=/tmp \
+     -o compression=off \
+     -o sync=disabled \
+     -o atime=off \
+     -o devices=off \
+     -o exec=on \
+     -o setuid=off \
+     zroot/tmp
 
-# 创建临时文件数据集 - 性能优化
-zfs create \
-    -o mountpoint=/tmp \
-    -o compression=off \
-    -o sync=disabled \
-    -o atime=off \
-    -o devices=off \
-    -o exec=on \
-    -o setuid=off \
-    zroot/tmp
-
-# 创建SMB共享数据集 - 私有共享，性能优化
-zfs create \
-    -o mountpoint=/share \
-    -o sharesmb=on \
-    -o atime=off \
-    zroot/share
+ # 创建SMB共享数据集 - 私有共享，性能优化（Samba 另行配置）
+ zfs create \
+     -o mountpoint=/share \
+     -o atime=off \
+     zroot/share
 ```
 
 
@@ -328,14 +337,11 @@ zfs set compression=zstd zroot/var
 zfs set compression=zstd zroot/var/log
 zfs set compression=zstd zroot/var/cache
 zfs set compression=zstd zroot/share
-zfs set compression=off zroot/tmp
 
 # 优化recordsize设置
 zfs set recordsize=128K zroot/ROOT/root
 zfs set recordsize=128K zroot/home
-zfs set recordsize=1M zroot/games
 zfs set recordsize=1M zroot/share
-zfs set recordsize=64K zroot/docker
 
 # 设置缓存文件
 zpool set cachefile=/etc/zfs/zpool.cache zroot
@@ -1559,7 +1565,143 @@ cat /proc/acpi/wakeup
 ```
 
 
-### 创建系统服务持久化配置 {#创建系统服务持久化配置}
+### 测试休眠唤醒功能 {#测试休眠唤醒功能}
+
+```sh
+# 休眠系统
+sudo systemctl hibernate
+
+# 休眠后，尝试以下操作验证：
+# 1. 按键盘任意键 - 应该无法唤醒
+# 2. 移动鼠标 - 应该无法唤醒
+# 3. 按电源键 - 应该能正常唤醒系统
+
+# 唤醒后检查休眠日志
+sudo journalctl -b | grep -i hibernate
+
+# 检查唤醒设备状态是否保持
+cat /proc/acpi/wakeup | grep -E "(XHC|XH00)"
+```
+
+
+## 附录：Podman 常用命令与日常维护 {#附录-podman-常用命令与日常维护}
+
+
+## 基本信息与运行 {#基本信息与运行}
+
+```sh
+podman info                 # 查看系统与存储信息
+podman run --rm hello-world # 快速自检运行
+```
+
+
+## 镜像与容器管理 {#镜像与容器管理}
+
+```sh
+podman images               # 列出镜像
+podman ps -a                # 列出容器（包含已停止）
+podman pull alpine          # 拉取镜像
+podman run -d --name web -p 8080:80 nginx:alpine
+podman logs -f web          # 跟随日志
+podman exec -it web sh      # 进入容器
+podman stop web && podman rm web
+```
+
+
+## 清理与空间回收 {#清理与空间回收}
+
+```sh
+podman image prune -a       # 清理未使用镜像
+podman container prune      # 清理已退出容器
+podman volume ls            # 查看卷
+podman volume prune         # 清理未使用卷
+podman system df            # 存储占用统计
+podman system prune -a      # 全面清理（谨慎）
+```
+
+
+## Quadlet 自启（推荐，替代 podman generate） {#quadlet-自启-推荐-替代-podman-generate}
+
+Podman 现已推荐使用 Quadlet（.container 文件）而非 =podman generate systemd=。
+
+-   rootless 放置路径：=~/.config/containers/systemd/=
+-   rootful 放置路径：=/etc/containers/systemd/=
+
+以 Nginx 为例，创建一个 =nginx.container=：
+
+```ini
+[Unit]
+Description=Nginx web server
+
+[Container]
+Image=docker.io/library/nginx:latest
+ContainerName=nginx
+# 映射端口 80
+PublishPort=80:80
+# 如果需要挂载本地配置或网页内容，可以加：
+# Volume=/srv/nginx/html:/usr/share/nginx/html:Z
+# Volume=/srv/nginx/conf.d:/etc/nginx/conf.d:Z
+Pull=always
+AutoUpdate=registry
+
+[Service]
+Restart=always
+
+[Install]
+WantedBy=default.target
+```
+
+-   rootless 部署与启动：
+
+<!--listend-->
+
+```sh
+mkdir -p ~/.config/containers/systemd
+cp nginx.container ~/.config/containers/systemd/
+systemctl --user daemon-reload
+systemctl --user start nginx.service
+# 查看状态/日志
+systemctl --user status nginx.service
+journalctl --user -u nginx -f
+# （可选）开机自启用户服务
+loginctl enable-linger "${USER}"
+```
+
+-   rootful 部署与启用（系统服务）：
+
+<!--listend-->
+
+```sh
+sudo mkdir -p /etc/containers/systemd
+sudo cp nginx.container /etc/containers/systemd/
+sudo systemctl daemon-reload
+sudo systemctl start nginx.service
+```
+
+-   自动更新（可选，对应 =AutoUpdate=registry=）：
+
+<!--listend-->
+
+```sh
+# rootless
+systemctl --user enable --now podman-auto-update.timer
+# rootful
+sudo systemctl enable --now podman-auto-update.timer
+```
+
+提示：rootless 模式下直接映射到宿主 1024 以下端口（如 80）可能受限，若失败可：
+
+-   使用 &gt;=1024 的宿主端口（如 8080:80），或
+-   调整 sysctl：sudo sysctl net.ipv4.ip_unprivileged_port_start=0，或改用 rootful。
+
+
+## 存储位置（与 ZFS 数据集对应） {#存储位置-与-zfs-数据集对应}
+
+-   rootful：/var/lib/containers/storage  （zroot/containers）
+-   rootless：~/.local/share/containers/storage  （zroot/containers-${user_arch}）
+
+
+## 创建系统服务持久化配置 {#创建系统服务持久化配置}
 
 ```sh
 # 创建systemd服务来持久化唤醒设备配置
@@ -1583,23 +1725,4 @@ sudo systemctl start disable-wakeup.service
 
 # 验证服务状态
 sudo systemctl status disable-wakeup.service
-```
-
-
-### 测试休眠唤醒功能 {#测试休眠唤醒功能}
-
-```sh
-# 休眠系统
-sudo systemctl hibernate
-
-# 休眠后，尝试以下操作验证：
-# 1. 按键盘任意键 - 应该无法唤醒
-# 2. 移动鼠标 - 应该无法唤醒
-# 3. 按电源键 - 应该能正常唤醒系统
-
-# 唤醒后检查休眠日志
-sudo journalctl -b | grep -i hibernate
-
-# 检查唤醒设备状态是否保持
-cat /proc/acpi/wakeup | grep -E "(XHC|XH00)"
 ```

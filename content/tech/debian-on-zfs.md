@@ -1,7 +1,7 @@
 +++
 title = "Debian on zfs 在 zfs 上安装 Debian linux"
 author = ["wang1zhen"]
-date = 2025-09-06T21:55:00+09:00
+date = 2025-09-14T05:57:00+09:00
 draft = false
 +++
 
@@ -177,7 +177,7 @@ apt update
 ```sh
 # 安装必要工具和依赖
 apt install -y linux-headers-$(uname -r) build-essential \
-               debootstrap arch-install-scripts gdisk
+    debootstrap arch-install-scripts gdisk
 
 # 安装ZFS相关包
 apt install -y zfsutils-linux zfs-dkms
@@ -247,6 +247,25 @@ zfs create -o mountpoint=/var rpool/var
 zfs create -o mountpoint=/var/log rpool/var/log
 zfs create -o mountpoint=/var/cache rpool/var/cache
 
+# 创建 Podman 数据集（rootful）- 小文件优化
+zfs create \
+    -o mountpoint=/var/lib/containers \
+    -o compression=zstd \
+    -o recordsize=64K \
+    -o atime=off \
+    rpool/containers
+
+# 创建 Podman 数据集（rootless，可选）
+# 设置变量：新系统的主要用户名（请替换为实际用户名）
+user_debian="YOUR_USERNAME"
+
+zfs create \
+    -o mountpoint="/home/${user_debian}/.local/share/containers" \
+    -o compression=zstd \
+    -o recordsize=64K \
+    -o atime=off \
+    rpool/containers-${user_debian}
+
 # 创建临时文件数据集 - 性能优化
 zfs create \
     -o mountpoint=/tmp \
@@ -258,11 +277,10 @@ zfs create \
     -o setuid=off \
     rpool/tmp
 
-# 创建SMB共享数据集 - 私有共享，性能优化
+# 创建SMB共享数据集 - 私有共享，性能优化（Samba 另行配置）
 zfs create \
     -o mountpoint=/share \
     -o compression=zstd \
-    -o sharesmb=on \
     -o atime=off \
     rpool/share
 ```
@@ -285,7 +303,6 @@ zfs set compression=zstd rpool/home
 zfs set compression=zstd rpool/var
 zfs set compression=zstd rpool/var/log
 zfs set compression=zstd rpool/var/cache
-zfs set compression=off rpool/tmp
 
 # 优化recordsize设置
 zfs set recordsize=128K rpool/ROOT/debian
@@ -422,7 +439,7 @@ apt install -y linux-image-amd64 linux-headers-amd64 \
     zfsutils-linux zfs-dkms zfs-initramfs \
     grub-efi-amd64 grub-efi-amd64-signed \
     shim-signed efibootmgr \
-    firmware-linux firmware-linux-nonfree firmware-iwlwifi \
+    firmware-linux firmware-linux-nonfree firmware-iwlwifi firmware-sof-signed \
     network-manager systemd-resolved \
     samba samba-common-bin
 
@@ -682,8 +699,7 @@ systemctl list-timers | grep zfs
 sudo systemctl status smbd
 sudo systemctl status nmbd
 
-# 验证ZFS SMB共享配置
-zfs get sharesmb rpool/share
+# 验证Samba配置（ZFS sharesmb 在 Linux 上不适用）
 
 # 验证Samba配置文件语法
 sudo testparm -s
@@ -744,25 +760,25 @@ sudo apt update && sudo apt upgrade -y
 ```sh
 # 使用官方APT仓库安装zrepl
 (
-set -ex
-zrepl_apt_key_url=https://zrepl.cschwarz.com/apt/apt-key.asc
-zrepl_apt_key_dst=/usr/share/keyrings/zrepl.gpg
-zrepl_apt_repo_file=/etc/apt/sources.list.d/zrepl.list
+    set -ex
+    zrepl_apt_key_url=https://zrepl.cschwarz.com/apt/apt-key.asc
+    zrepl_apt_key_dst=/usr/share/keyrings/zrepl.gpg
+    zrepl_apt_repo_file=/etc/apt/sources.list.d/zrepl.list
 
-# Install dependencies for subsequent commands
-sudo apt update && sudo apt install curl gnupg lsb-release
+    # Install dependencies for subsequent commands
+    sudo apt update && sudo apt install curl gnupg lsb-release
 
-# Deploy the zrepl apt key.
-curl -fsSL "$zrepl_apt_key_url" | tee | gpg --dearmor | sudo tee "$zrepl_apt_key_dst" > /dev/null
+    # Deploy the zrepl apt key.
+    curl -fsSL "$zrepl_apt_key_url" | tee | gpg --dearmor | sudo tee "$zrepl_apt_key_dst" > /dev/null
 
-# Add the zrepl apt repo.
-ARCH="$(dpkg --print-architecture)"
-CODENAME="$(lsb_release -i -s | tr '[:upper:]' '[:lower:]') $(lsb_release -c -s | tr '[:upper:]' '[:lower:]')"
-echo "Using Distro and Codename: $CODENAME"
-echo "deb [arch=$ARCH signed-by=$zrepl_apt_key_dst] https://zrepl.cschwarz.com/apt/$CODENAME main" | sudo tee "$zrepl_apt_repo_file" > /dev/null
+    # Add the zrepl apt repo.
+    ARCH="$(dpkg --print-architecture)"
+    CODENAME="$(lsb_release -i -s | tr '[:upper:]' '[:lower:]') $(lsb_release -c -s | tr '[:upper:]' '[:lower:]')"
+    echo "Using Distro and Codename: $CODENAME"
+    echo "deb [arch=$ARCH signed-by=$zrepl_apt_key_dst] https://zrepl.cschwarz.com/apt/$CODENAME main" | sudo tee "$zrepl_apt_repo_file" > /dev/null
 
-# Update apt repos.
-sudo apt update
+    # Update apt repos.
+    sudo apt update
 )
 
 # 安装zrepl
@@ -858,113 +874,113 @@ sudo systemctl start zrepl
 ```sh
 sudo tee /usr/local/bin/zfs-apt-snapshot << 'EOF'
 #!/bin/bash
-# ZFS APT快照管理脚本
-# 在每次apt操作前后创建快照，最多保留50个apt相关快照
+# ZFS APT snapshot management script
+# Create snapshots before/after apt operations, keep up to 50 apt-related snapshots
 
-set -euo pipefail
+ set -euo pipefail
 
-SNAPSHOT_PREFIX="apt"
-MAX_SNAPSHOTS=50
-DATASETS=("rpool/ROOT/debian" "rpool/var" "rpool/home")
+ SNAPSHOT_PREFIX="apt"
+ MAX_SNAPSHOTS=50
+ DATASETS=("rpool/ROOT/debian" "rpool/var" "rpool/home")
 
-# 获取当前时间戳
+# Get current timestamp
 TIMESTAMP=$(date +%Y%m%d_%H%M%S)
 
-# 日志函数
+# Logging function
 log() {
     echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1" | sudo tee -a /var/log/zfs-apt-snapshots.log
 }
 
-# 创建快照函数
+# Create snapshot function
 create_snapshot() {
     local phase=$1
     local snapshot_name="${SNAPSHOT_PREFIX}_${phase}_${TIMESTAMP}"
 
-    log "开始创建 ${phase} 快照: ${snapshot_name}"
+    log "Starting ${phase} snapshot: ${snapshot_name}"
 
-    for dataset in "${DATASETS[@]}"; do
+     for dataset in "${DATASETS[@]}"; do
         if zfs list -H -o name "$dataset" >/dev/null 2>&1; then
             local full_snapshot_name="${dataset}@${snapshot_name}"
             if zfs snapshot "$full_snapshot_name"; then
-                log "成功创建快照: $full_snapshot_name"
+                log "Snapshot created: $full_snapshot_name"
             else
-                log "错误: 创建快照失败: $full_snapshot_name"
+                log "Error: Failed to create snapshot: $full_snapshot_name"
             fi
         else
-            log "警告: 数据集不存在: $dataset"
+            log "Warning: Dataset does not exist: $dataset"
         fi
     done
 
-    log "完成创建 ${phase} 快照"
+    log "Finished ${phase} snapshot creation"
 }
 
-# 清理旧快照函数
+# Cleanup old snapshots function
 cleanup_snapshots() {
-    log "开始清理旧的apt快照"
+    log "Starting cleanup of old apt snapshots"
 
-    for dataset in "${DATASETS[@]}"; do
-        if ! zfs list -H -o name "$dataset" >/dev/null 2>&1; then
-            continue
-        fi
+     for dataset in "${DATASETS[@]}"; do
+         if ! zfs list -H -o name "$dataset" >/dev/null 2>&1; then
+             continue
+         fi
 
-        # 获取所有apt快照，按创建时间排序（最新的在前）
+        # Get all apt snapshots, sorted by creation time (newest first)
         local snapshots=($(zfs list -H -t snapshot -o name -s creation | grep "${dataset}@${SNAPSHOT_PREFIX}_" | head -n 100))
         local snapshot_count=${#snapshots[@]}
 
         if [ $snapshot_count -gt $MAX_SNAPSHOTS ]; then
-            log "数据集 $dataset 有 $snapshot_count 个apt快照，需要清理"
+            log "Dataset $dataset has $snapshot_count apt snapshots, needs cleanup"
 
-            # 删除超出数量限制的快照（保留最新的MAX_SNAPSHOTS个）
+            # Delete snapshots exceeding the limit (keep the newest MAX_SNAPSHOTS)
             local to_delete=$((snapshot_count - MAX_SNAPSHOTS))
             local deleted_count=0
 
             for ((i=$((snapshot_count-1)); i>=$((snapshot_count-to_delete)); i--)); do
                 if zfs destroy "${snapshots[$i]}"; then
-                    log "删除旧快照: ${snapshots[$i]}"
+                    log "Deleted old snapshot: ${snapshots[$i]}"
                     ((deleted_count++))
                 else
-                    log "错误: 删除快照失败: ${snapshots[$i]}"
+                    log "Error: Failed to delete snapshot: ${snapshots[$i]}"
                 fi
             done
 
-            log "数据集 $dataset 清理完成，删除了 $deleted_count 个旧快照"
+            log "Dataset $dataset cleanup done, deleted $deleted_count old snapshots"
         else
-            log "数据集 $dataset 有 $snapshot_count 个apt快照，无需清理"
+            log "Dataset $dataset has $snapshot_count apt snapshots, no cleanup needed"
         fi
     done
 
-    log "快照清理完成"
+    log "Snapshot cleanup complete"
 }
 
-# 主函数
+# Main function
 main() {
     local phase=$1
 
-    # 确保日志目录存在
+    # Ensure log directory exists
     sudo mkdir -p "$(dirname /var/log/zfs-apt-snapshots.log)"
 
-    case "$phase" in
-        pre)
-            create_snapshot "pre"
-            ;;
-        post)
-            create_snapshot "post"
-            cleanup_snapshots
-            ;;
-        *)
-            echo "用法: $0 {pre|post}"
-            echo "  pre  - 在apt操作前创建快照"
-            echo "  post - 在apt操作后创建快照并清理旧快照"
+     case "$phase" in
+         pre)
+             create_snapshot "pre"
+             ;;
+         post)
+             create_snapshot "post"
+             cleanup_snapshots
+             ;;
+         *)
+            echo "Usage: $0 {pre|post}"
+            echo "  pre  - Create snapshots before apt operations"
+            echo "  post - Create snapshots after apt operations and clean up old snapshots"
             exit 1
             ;;
     esac
 }
 
-# 执行主函数
+# Execute main
 main "$@"
 EOF
 
-# 设置执行权限
+# Set executable permission
 sudo chmod +x /usr/local/bin/zfs-apt-snapshot
 ```
 
@@ -987,22 +1003,22 @@ EOF
 ### 测试快照系统 {#测试快照系统}
 
 ```sh
-# 测试创建pre和post快照
-echo "测试创建快照..."
+# Test pre and post snapshot creation
+echo "Testing snapshot creation..."
 sudo /usr/local/bin/zfs-apt-snapshot pre
 sleep 2
 sudo /usr/local/bin/zfs-apt-snapshot post
 
-echo "列出创建的快照:"
+echo "Listing created snapshots:"
 zfs list -t snapshot | grep apt
 
-echo "删除测试快照..."
+echo "Deleting test snapshots..."
 zfs list -t snapshot | grep apt | awk '{print $1}' | xargs -r -n1 sudo zfs destroy
 
-echo "验证快照已删除:"
-zfs list -t snapshot | grep apt || echo "无apt快照，测试完成"
+echo "Verifying snapshots are deleted:"
+zfs list -t snapshot | grep apt || echo "No apt snapshots, test complete"
 
-# 验证zrepl服务状态
+# Verify zrepl service status
 sudo systemctl status zrepl
 ```
 
@@ -1264,14 +1280,12 @@ zpool iostat 1           # 实时I/O统计
 sudo zfs get compressratio rpool/ROOT/debian    # 查看压缩比
 
 # SMB共享管理
-zfs get sharesmb rpool/share            # 查看SMB共享配置
 sudo systemctl status smbd              # 检查SMB服务状态
 smbclient -L localhost -U username      # 查看共享列表
 sudo smbpasswd -a username              # 添加SMB用户
 ls -la /share                          # 检查共享目录权限
 
 # SMB共享管理
-zfs get sharesmb rpool/share            # 查看ZFS SMB共享配置
 sudo systemctl status smbd              # 检查SMB服务状态
 sudo testparm -s                       # 验证Samba配置语法
 smbclient -L localhost -U username      # 查看共享列表
@@ -1290,6 +1304,135 @@ sudo smbpasswd -x username              # 删除SMB用户
 sudo zpool status -v     # 详细池状态
 sudo journalctl -u zfs-import-cache.service   # 查看ZFS日志
 ```
+
+
+### 安装 Podman 与兼容层 {#安装-podman-与兼容层}
+
+```sh
+# 安装 Podman 及 docker 兼容层和 compose 支持
+apt install -y podman podman-docker podman-compose
+
+# 基本自检
+podman info
+podman run --rm hello-world
+```
+
+
+## 附录：Podman 常用命令与日常维护 {#附录-podman-常用命令与日常维护}
+
+
+### 基本信息与运行 {#基本信息与运行}
+
+```sh
+podman info                 # 查看系统与存储信息
+podman run --rm hello-world # 快速自检运行
+```
+
+
+### 镜像与容器管理 {#镜像与容器管理}
+
+```sh
+podman images               # 列出镜像
+podman ps -a                # 列出容器（包含已停止）
+podman pull alpine          # 拉取镜像
+podman run -d --name web -p 8080:80 nginx:alpine
+podman logs -f web          # 跟随日志
+podman exec -it web sh      # 进入容器
+podman stop web && podman rm web
+```
+
+
+### 清理与空间回收 {#清理与空间回收}
+
+```sh
+podman image prune -a       # 清理未使用镜像
+podman container prune      # 清理已退出容器
+podman volume ls            # 查看卷
+podman volume prune         # 清理未使用卷
+podman system df            # 存储占用统计
+podman system prune -a      # 全面清理（谨慎）
+```
+
+
+### Quadlet 自启（推荐，替代 podman generate） {#quadlet-自启-推荐-替代-podman-generate}
+
+Podman 现已推荐使用 Quadlet（.container 文件）而非 =podman generate systemd=。
+
+-   rootless 放置路径：=~/.config/containers/systemd/=
+-   rootful 放置路径：=/etc/containers/systemd/=
+
+以 Nginx 为例，创建一个 =nginx.container=：
+
+```ini
+[Unit]
+Description=Nginx web server
+
+[Container]
+Image=docker.io/library/nginx:latest
+ContainerName=nginx
+# 映射端口 80
+PublishPort=80:80
+# 如果需要挂载本地配置或网页内容，可以加：
+# Volume=/srv/nginx/html:/usr/share/nginx/html:Z
+# Volume=/srv/nginx/conf.d:/etc/nginx/conf.d:Z
+Pull=always
+AutoUpdate=registry
+
+[Service]
+Restart=always
+
+[Install]
+WantedBy=default.target
+```
+
+-   rootless 部署与启动：
+
+<!--listend-->
+
+```sh
+mkdir -p ~/.config/containers/systemd
+cp nginx.container ~/.config/containers/systemd/
+systemctl --user daemon-reload
+systemctl --user start nginx.service
+# 查看状态/日志
+systemctl --user status nginx.service
+journalctl --user -u nginx -f
+# （可选）开机自启用户服务
+loginctl enable-linger "$USER"
+```
+
+-   rootful 部署与启动（系统服务）：
+
+<!--listend-->
+
+```sh
+sudo mkdir -p /etc/containers/systemd
+sudo cp nginx.container /etc/containers/systemd/
+sudo systemctl daemon-reload
+sudo systemctl start nginx.service
+```
+
+-   自动更新（可选，对应 =AutoUpdate=registry=）：
+
+<!--listend-->
+
+```sh
+# rootless
+systemctl --user enable --now podman-auto-update.timer
+# rootful
+sudo systemctl enable --now podman-auto-update.timer
+```
+
+提示：rootless 模式下直接映射到宿主 1024 以下端口（如 80）可能受限，若失败可：
+
+-   使用 &gt;=1024 的宿主端口（如 8080:80），或
+-   调整 sysctl：sudo sysctl net.ipv4.ip_unprivileged_port_start=0，或改用 rootful。
+
+
+### 存储位置（与 ZFS 数据集对应） {#存储位置-与-zfs-数据集对应}
+
+-   rootful：/var/lib/containers/storage  （rpool/containers）
+-   rootless：~/.local/share/containers/storage  （rpool/containers-${user_debian}）
 
 
 ## 附录：NVIDIA显卡禁用配置 {#附录-nvidia显卡禁用配置}
