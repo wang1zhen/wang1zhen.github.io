@@ -1,7 +1,7 @@
 +++
 title = "Debian on zfs 在 zfs 上安装 Debian linux"
 author = ["wang1zhen"]
-date = 2025-09-14T05:57:00+09:00
+date = 2025-09-15T01:19:00+09:00
 draft = false
 +++
 
@@ -1361,20 +1361,20 @@ Podman 现已推荐使用 Quadlet（.container 文件）而非 =podman generate 
 -   rootless 放置路径：=~/.config/containers/systemd/=
 -   rootful 放置路径：=/etc/containers/systemd/=
 
-以 Nginx 为例，创建一个 =nginx.container=：
+以 Caddy 为例，创建一个 =caddy.container=：
 
 ```ini
 [Unit]
-Description=Nginx web server
+Description=Caddy file server
+After=network-online.target
+Wants=network-online.target
 
 [Container]
-Image=docker.io/library/nginx:latest
-ContainerName=nginx
-# 映射端口 80
-PublishPort=80:80
-# 如果需要挂载本地配置或网页内容，可以加：
-# Volume=/srv/nginx/html:/usr/share/nginx/html:Z
-# Volume=/srv/nginx/conf.d:/etc/nginx/conf.d:Z
+Image=docker.io/caddy:latest
+ContainerName=caddy
+Volume=/share:/srv/share:ro
+PublishPort=8080:8080
+Exec=caddy file-server --root /srv/share --listen :8080 --browse
 Pull=always
 AutoUpdate=registry
 
@@ -1385,18 +1385,46 @@ Restart=always
 WantedBy=default.target
 ```
 
--   rootless 部署与启动：
+Quadlet 运行机制要点：
+
+-   段名：源文件使用 [Container]；[X-Container] 仅出现在生成输出中。
+-   其他段：可额外写入 [Service]、[Install]，systemd 会照常解析。
+-   重启策略：在 [Container] 中没有 Restart/RestartPolicy；需在 [Service] 中写 Restart=always（Podman 无 unless-stopped 与 always 的区别，always 等价）。
+-   自启动：[Install] 中加入 WantedBy=default.target；执行 \`systemctl --user daemon-reload\` 后，Quadlet 会生成标记为 generated 的 .service 并挂到 default.target。generated 单元不能 enable，但已通过 [Install] 关联目标。
+-   开机与 linger：
+    -   未启用 linger 时，user manager 只在登录后运行，容器登录后才启动。
+    -   启用 linger 后（\`sudo loginctl enable-linger $USER\`），user manager 开机即运行，容器随系统自启。
+
+实际使用步骤：
+
+1.  写 .container 到 \`~/.config/containers/systemd/\`，包含 [Container]、[Service] Restart=always、[Install] WantedBy=default.target。
+2.  执行：
+    ```sh
+    systemctl --user daemon-reload
+    # 立即运行（可选，但建议执行一次以立刻生效）
+    systemctl --user start caddy.service
+    ```
+3.  确认：
+    ```sh
+    systemctl --user status caddy.service
+    ```
+4.  如需真正随开机启动（无需登录）：
+    ```sh
+    sudo loginctl enable-linger "$USER"
+    ```
+
+5.  rootless 部署与启动：
 
 <!--listend-->
 
 ```sh
 mkdir -p ~/.config/containers/systemd
-cp nginx.container ~/.config/containers/systemd/
+cp caddy.container ~/.config/containers/systemd/
 systemctl --user daemon-reload
-systemctl --user start nginx.service
+systemctl --user start caddy.service
 # 查看状态/日志
-systemctl --user status nginx.service
-journalctl --user -u nginx -f
+systemctl --user status caddy.service
+journalctl --user -u caddy -f
 # （可选）开机自启用户服务
 loginctl enable-linger "$USER"
 ```
@@ -1407,9 +1435,9 @@ loginctl enable-linger "$USER"
 
 ```sh
 sudo mkdir -p /etc/containers/systemd
-sudo cp nginx.container /etc/containers/systemd/
+sudo cp caddy.container /etc/containers/systemd/
 sudo systemctl daemon-reload
-sudo systemctl start nginx.service
+sudo systemctl start caddy.service
 ```
 
 -   自动更新（可选，对应 =AutoUpdate=registry=）：
