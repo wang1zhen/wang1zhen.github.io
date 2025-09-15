@@ -736,112 +736,122 @@ systemctl list-timers | grep zfs
 
 ```sh
 cat > /usr/local/bin/zfs-pacman-snapshot << 'EOF'
-#!/bin/bash
+#!/usr/bin/env bash
+# /usr/local/bin/zfs-pacman-snapshot
+# Create and prune ZFS snapshots around pacman transactions.
+# Snapshots are named: pacman_{pre|post}_YYYYmmdd_HHMMSS
+# Per-dataset retention: keep newest MAX_SNAPSHOTS, prune older ones.
 
-# ZFS Pacman快照管理脚本
-# 在每次pacman操作前后创建快照，最多保留50个pacman相关快照
-
-set -euo pipefail
+set -uo pipefail
 
 SNAPSHOT_PREFIX="pacman"
 MAX_SNAPSHOTS=50
 DATASETS=("zroot/ROOT/root" "zroot/var" "zroot/home")
+LOG_FILE="/var/log/zfs-pacman-snapshots.log"
+TIMESTAMP="$(date +%Y%m%d_%H%M%S)"
 
-# 获取当前时间戳
-TIMESTAMP=$(date +%Y%m%d_%H%M%S)
-
-# 日志函数
+# ----- utils -----
 log() {
-    echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1" >> /var/log/zfs-pacman-snapshots.log
+  local msg="$1"
+  # ensure dir exists
+  mkdir -p "$(dirname "$LOG_FILE")" 2>/dev/null || true
+  printf '[%s] %s\n' "$(date '+%F %T')" "$msg" >>"$LOG_FILE"
 }
 
-# 创建快照函数
+require_cmd() {
+  command -v "$1" >/dev/null 2>&1 || { log "missing command: $1"; return 1; }
+}
+
+# Single-instance lock to avoid overlapping hooks
+acquire_lock() {
+  exec 9>/run/zfs-pacman-snapshot.lock || exec 9>/tmp/zfs-pacman-snapshot.lock
+  flock -n 9 || { log "another instance is running; skipping"; return 1; }
+}
+
+# ----- core -----
 create_snapshot() {
-    local phase=$1
-    local snapshot_name="${SNAPSHOT_PREFIX}_${phase}_${TIMESTAMP}"
+  local phase="$1"            # "pre" or "post"
+  local snap="${SNAPSHOT_PREFIX}_${phase}_${TIMESTAMP}"
 
-    log "开始创建 ${phase} 快照: ${snapshot_name}"
+  log "creating ${phase} snapshots with name: ${snap}"
 
-    for dataset in "${DATASETS[@]}"; do
-        if zfs list -H -o name "$dataset" >/dev/null 2>&1; then
-            local full_snapshot_name="${dataset}@${snapshot_name}"
-            if zfs snapshot "$full_snapshot_name"; then
-                log "成功创建快照: $full_snapshot_name"
-            else
-                log "错误: 创建快照失败: $full_snapshot_name"
-            fi
-        else
-            log "警告: 数据集不存在: $dataset"
-        fi
-    done
-
-    log "完成创建 ${phase} 快照"
+  for ds in "${DATASETS[@]}"; do
+    if zfs list -H -o name "$ds" >/dev/null 2>&1; then
+      local full="${ds}@${snap}"
+      if zfs snapshot "$full" >/dev/null 2>&1; then
+        log "created: $full"
+      else
+        log "error creating: $full"
+      fi
+    else
+      log "dataset not found, skip: $ds"
+    fi
+  done
 }
 
-# 清理旧快照函数
 cleanup_snapshots() {
-    log "开始清理旧的pacman快照"
+  log "pruning old pacman snapshots (keep newest ${MAX_SNAPSHOTS} per dataset)"
 
-    for dataset in "${DATASETS[@]}"; do
-        if ! zfs list -H -o name "$dataset" >/dev/null 2>&1; then
-            continue
-        fi
+  for ds in "${DATASETS[@]}"; do
+    zfs list -H -o name "$ds" >/dev/null 2>&1 || continue
 
-        # 获取所有pacman快照，按创建时间排序（最新的在前）
-        local snapshots=($(zfs list -H -t snapshot -o name -s creation | grep "${dataset}@${SNAPSHOT_PREFIX}_" | head -n 100))
-        local snapshot_count=${#snapshots[@]}
+    # List snapshots for this exact dataset, newest first.
+    # Use -r to allow listing children then filter exact match on the left of '@'.
+    # shellcheck disable=SC2016
+    mapfile -t snaps < <(
+      zfs list -H -t snapshot -o name -S creation -r "$ds" 2>/dev/null \
+      | awk -v ds="$ds" -v pfx="$SNAPSHOT_PREFIX" -F'@' '$1==ds && $2 ~ "^"pfx"_" {print $0}'
+    )
 
-        if [ $snapshot_count -gt $MAX_SNAPSHOTS ]; then
-            log "数据集 $dataset 有 $snapshot_count 个pacman快照，需要清理"
+    local count="${#snaps[@]}"
+    if (( count <= MAX_SNAPSHOTS )); then
+      log "dataset $ds: $count snapshots, no pruning needed"
+      continue
+    fi
 
-            # 删除超出数量限制的快照（保留最新的MAX_SNAPSHOTS个）
-            local to_delete=$((snapshot_count - MAX_SNAPSHOTS))
-            local deleted_count=0
+    local to_delete=$((count - MAX_SNAPSHOTS))
+    log "dataset $ds: $count snapshots, deleting $to_delete older snapshots"
 
-            for ((i=$((snapshot_count-1)); i>=$((snapshot_count-to_delete)); i--)); do
-                if zfs destroy "${snapshots[$i]}"; then
-                    log "删除旧快照: ${snapshots[$i]}"
-                    ((deleted_count++))
-                else
-                    log "错误: 删除快照失败: ${snapshots[$i]}"
-                fi
-            done
-
-            log "数据集 $dataset 清理完成，删除了 $deleted_count 个旧快照"
-        else
-            log "数据集 $dataset 有 $snapshot_count 个pacman快照，无需清理"
-        fi
+    # Delete from index MAX_SNAPSHOTS onward (older ones)
+    local deleted=0
+    for ((i=MAX_SNAPSHOTS; i<count; i++)); do
+      s="${snaps[$i]}"
+      if zfs destroy "$s" >/dev/null 2>&1; then
+        ((deleted++))
+        log "destroyed: $s"
+      else
+        log "failed to destroy: $s"
+      fi
     done
-
-    log "快照清理完成"
+    log "dataset $ds: prune complete, deleted $deleted"
+  done
 }
 
-# 主函数
 main() {
-    local phase=$1
+  # Defensive checks. Never abort pacman; just log and exit 0.
+  require_cmd zfs || return 0
+  acquire_lock || return 0
 
-    # 确保日志目录存在
-    mkdir -p "$(dirname /var/log/zfs-pacman-snapshots.log)"
+  case "${1:-}" in
+    pre)
+      create_snapshot "pre"
+      ;;
+    post)
+      create_snapshot "post"
+      cleanup_snapshots
+      ;;
+    *)
+      echo "Usage: $0 {pre|post}"
+      echo "  pre  - create snapshots before pacman transaction"
+      echo "  post - create snapshots after pacman transaction and prune old ones"
+      ;;
+  esac
 
-    case "$phase" in
-        pre)
-            create_snapshot "pre"
-            ;;
-        post)
-            create_snapshot "post"
-            cleanup_snapshots
-            ;;
-        *)
-            echo "用法: $0 {pre|post}"
-            echo "  pre  - 在pacman操作前创建快照"
-            echo "  post - 在pacman操作后创建快照并清理旧快照"
-            exit 1
-            ;;
-    esac
+  return 0
 }
 
-# 执行主函数
-main "$@"
+main "$@" || true
+exit 0
 EOF
 
 # 设置执行权限
@@ -1469,18 +1479,19 @@ sudo systemctl start zfs-scrub-monthly@zroot.timer
 6.  进入chroot：=arch-chroot /mnt=
 7.  执行修复操作
 
-    **系统回滚示例：**
-    ```sh
-    # 在Live环境中回滚到pacman操作前的快照
-    zpool import -R /mnt zroot
-    zfs rollback zroot/ROOT/root@pacman_pre_YYYYMMDD_HHMMSS
-    zfs mount zroot/ROOT/root
-    mount /dev/nvme0n1p1 /mnt/boot
-    arch-chroot /mnt
-    grub-mkconfig -o /boot/grub/grub.cfg
-    exit
-    reboot
-    ```
+**系统回滚示例：**
+
+```sh
+# 在Live环境中回滚到pacman操作前的快照
+zpool import -R /mnt zroot
+zfs rollback zroot/ROOT/root@pacman_pre_YYYYMMDD_HHMMSS
+zfs mount zroot/ROOT/root
+mount /dev/nvme0n1p1 /mnt/boot
+arch-chroot /mnt
+grub-mkconfig -o /boot/grub/grub.cfg
+exit
+reboot
+```
 
 
 ## 常用命令速查 {#常用命令速查}
