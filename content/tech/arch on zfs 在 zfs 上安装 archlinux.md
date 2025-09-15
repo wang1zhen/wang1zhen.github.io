@@ -1112,6 +1112,8 @@ jobs:
       interval: 1h
     pruning:
       keep:
+        - type: regex
+          regex: "^pacman_.*"  # 保留由 pacman 自动快照创建的快照
         - type: last_n
           count: 24  # 保留最近24个小时快照
 
@@ -1128,6 +1130,8 @@ jobs:
       interval: 24h
     pruning:
       keep:
+        - type: regex
+          regex: "^pacman_.*"  # 保留由 pacman 自动快照创建的快照
         - type: last_n
           count: 30   # 保留最近30天的每日快照
 
@@ -1143,6 +1147,8 @@ jobs:
       interval: 168h
     pruning:
       keep:
+        - type: regex
+          regex: "^pacman_.*"  # 保留由 pacman 自动快照创建的快照
         - type: last_n
           count: 12   # 保留最近12周的每周快照
 
@@ -1158,6 +1164,8 @@ jobs:
       interval: 720h
     pruning:
       keep:
+        - type: regex
+          regex: "^pacman_.*"  # 保留由 pacman 自动快照创建的快照
         - type: last_n
           count: 12   # 保留最近12个月的每月快照
 EOF

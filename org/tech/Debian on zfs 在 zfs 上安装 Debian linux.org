@@ -703,6 +703,8 @@
            interval: 1h
          pruning:
            keep:
+             - type: regex
+               regex: "^apt_.*"  # 保留由 APT 钩子创建的快照
              - type: last_n
                count: 24  # 保留最近24个小时快照
 
@@ -719,6 +721,8 @@
            interval: 24h
          pruning:
            keep:
+             - type: regex
+               regex: "^apt_.*"  # 保留由 APT 钩子创建的快照
              - type: last_n
                count: 30   # 保留最近30天的每日快照
 
@@ -734,6 +738,8 @@
            interval: 168h
          pruning:
            keep:
+             - type: regex
+               regex: "^apt_.*"  # 保留由 APT 钩子创建的快照
              - type: last_n
                count: 12   # 保留最近12周的每周快照
 
@@ -749,6 +755,8 @@
            interval: 720h
          pruning:
            keep:
+             - type: regex
+               regex: "^apt_.*"  # 保留由 APT 钩子创建的快照
              - type: last_n
                count: 12   # 保留最近12个月的每月快照
      EOF
@@ -762,111 +770,120 @@
 ** 创建快照管理脚本
    #+begin_src sh
      sudo tee /usr/local/bin/zfs-apt-snapshot << 'EOF'
-     #!/bin/bash
-     # ZFS APT snapshot management script
-     # Create snapshots before/after apt operations, keep up to 50 apt-related snapshots
+     #!/usr/bin/env bash
+     # /usr/local/bin/zfs-apt-snapshot
+     # Create and prune ZFS snapshots around apt transactions.
+     # Snapshots are named: apt_{pre|post}_YYYYmmdd_HHMMSS
+     # Per-dataset retention: keep newest MAX_SNAPSHOTS, prune older ones.
 
-      set -euo pipefail
+     set -uo pipefail
 
-      SNAPSHOT_PREFIX="apt"
-      MAX_SNAPSHOTS=50
-      DATASETS=("rpool/ROOT/debian" "rpool/var" "rpool/home")
+     SNAPSHOT_PREFIX="apt"
+     MAX_SNAPSHOTS=50
+     DATASETS=("rpool/ROOT/debian" "rpool/var" "rpool/home")
+     LOG_FILE="/var/log/zfs-apt-snapshots.log"
+     TIMESTAMP="$(date +%Y%m%d_%H%M%S)"
 
-     # Get current timestamp
-     TIMESTAMP=$(date +%Y%m%d_%H%M%S)
-
-     # Logging function
+     # ----- utils -----
      log() {
-         echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1" | sudo tee -a /var/log/zfs-apt-snapshots.log
+       local msg="$1"
+       mkdir -p "$(dirname "$LOG_FILE")" 2>/dev/null || true
+       printf '[%s] %s\n' "$(date '+%F %T')" "$msg" >>"$LOG_FILE"
      }
 
-     # Create snapshot function
+     require_cmd() {
+       command -v "$1" >/dev/null 2>&1 || { log "missing command: $1"; return 1; }
+     }
+
+     # Single-instance lock to avoid overlapping hooks
+     acquire_lock() {
+       exec 9>/run/zfs-apt-snapshot.lock || exec 9>/tmp/zfs-apt-snapshot.lock
+       flock -n 9 || { log "another instance is running; skipping"; return 1; }
+     }
+
+     # ----- core -----
      create_snapshot() {
-         local phase=$1
-         local snapshot_name="${SNAPSHOT_PREFIX}_${phase}_${TIMESTAMP}"
+       local phase="$1"            # "pre" or "post"
+       local snap="${SNAPSHOT_PREFIX}_${phase}_${TIMESTAMP}"
 
-         log "Starting ${phase} snapshot: ${snapshot_name}"
+       log "creating ${phase} snapshots with name: ${snap}"
 
-          for dataset in "${DATASETS[@]}"; do
-             if zfs list -H -o name "$dataset" >/dev/null 2>&1; then
-                 local full_snapshot_name="${dataset}@${snapshot_name}"
-                 if zfs snapshot "$full_snapshot_name"; then
-                     log "Snapshot created: $full_snapshot_name"
-                 else
-                     log "Error: Failed to create snapshot: $full_snapshot_name"
-                 fi
-             else
-                 log "Warning: Dataset does not exist: $dataset"
-             fi
-         done
-
-         log "Finished ${phase} snapshot creation"
+       for ds in "${DATASETS[@]}"; do
+         if zfs list -H -o name "$ds" >/dev/null 2>&1; then
+           local full="${ds}@${snap}"
+           if zfs snapshot "$full" >/dev/null 2>&1; then
+             log "created: $full"
+           else
+             log "error creating: $full"
+           fi
+         else
+           log "dataset not found, skip: $ds"
+         fi
+       done
      }
 
-     # Cleanup old snapshots function
      cleanup_snapshots() {
-         log "Starting cleanup of old apt snapshots"
+       log "pruning old apt snapshots (keep newest ${MAX_SNAPSHOTS} per dataset)"
 
-          for dataset in "${DATASETS[@]}"; do
-              if ! zfs list -H -o name "$dataset" >/dev/null 2>&1; then
-                  continue
-              fi
+       for ds in "${DATASETS[@]}"; do
+         zfs list -H -o name "$ds" >/dev/null 2>&1 || continue
 
-             # Get all apt snapshots, sorted by creation time (newest first)
-             local snapshots=($(zfs list -H -t snapshot -o name -s creation | grep "${dataset}@${SNAPSHOT_PREFIX}_" | head -n 100))
-             local snapshot_count=${#snapshots[@]}
+         # List snapshots for this exact dataset, newest first.
+         # Use -r to allow listing children then filter exact match on the left of '@'.
+         # shellcheck disable=SC2016
+         mapfile -t snaps < <(
+           zfs list -H -t snapshot -o name -S creation -r "$ds" 2>/dev/null \
+           | awk -v ds="$ds" -v pfx="$SNAPSHOT_PREFIX" -F'@' '$1==ds && $2 ~ "^"pfx"_" {print $0}'
+         )
 
-             if [ $snapshot_count -gt $MAX_SNAPSHOTS ]; then
-                 log "Dataset $dataset has $snapshot_count apt snapshots, needs cleanup"
+         local count="${#snaps[@]}"
+         if (( count <= MAX_SNAPSHOTS )); then
+           log "dataset $ds: $count snapshots, no pruning needed"
+           continue
+         fi
 
-                 # Delete snapshots exceeding the limit (keep the newest MAX_SNAPSHOTS)
-                 local to_delete=$((snapshot_count - MAX_SNAPSHOTS))
-                 local deleted_count=0
+         local to_delete=$((count - MAX_SNAPSHOTS))
+         log "dataset $ds: $count snapshots, deleting $to_delete older snapshots"
 
-                 for ((i=$((snapshot_count-1)); i>=$((snapshot_count-to_delete)); i--)); do
-                     if zfs destroy "${snapshots[$i]}"; then
-                         log "Deleted old snapshot: ${snapshots[$i]}"
-                         ((deleted_count++))
-                     else
-                         log "Error: Failed to delete snapshot: ${snapshots[$i]}"
-                     fi
-                 done
-
-                 log "Dataset $dataset cleanup done, deleted $deleted_count old snapshots"
-             else
-                 log "Dataset $dataset has $snapshot_count apt snapshots, no cleanup needed"
-             fi
+         local deleted=0
+         for ((i=MAX_SNAPSHOTS; i<count; i++)); do
+           s="${snaps[$i]}"
+           if zfs destroy "$s" >/dev/null 2>&1; then
+             ((deleted++))
+             log "destroyed: $s"
+           else
+             log "failed to destroy: $s"
+           fi
          done
-
-         log "Snapshot cleanup complete"
+         log "dataset $ds: prune complete, deleted $deleted"
+       done
      }
 
-     # Main function
      main() {
-         local phase=$1
+       # Defensive checks. Never abort apt; just log and exit 0.
+       require_cmd zfs || return 0
+       acquire_lock || return 0
 
-         # Ensure log directory exists
-         sudo mkdir -p "$(dirname /var/log/zfs-apt-snapshots.log)"
+       case "${1:-}" in
+         pre)
+           create_snapshot "pre"
+           ;;
+         post)
+           create_snapshot "post"
+           cleanup_snapshots
+           ;;
+         ,*)
+           echo "Usage: $0 {pre|post}"
+           echo "  pre  - create snapshots before apt transaction"
+           echo "  post - create snapshots after apt transaction and prune old ones"
+           ;;
+       esac
 
-          case "$phase" in
-              pre)
-                  create_snapshot "pre"
-                  ;;
-              post)
-                  create_snapshot "post"
-                  cleanup_snapshots
-                  ;;
-              ,*)
-                 echo "Usage: $0 {pre|post}"
-                 echo "  pre  - Create snapshots before apt operations"
-                 echo "  post - Create snapshots after apt operations and clean up old snapshots"
-                 exit 1
-                 ;;
-         esac
+       return 0
      }
 
-     # Execute main
-     main "$@"
+     main "$@" || true
+     exit 0
      EOF
 
      # Set executable permission
@@ -1205,90 +1222,90 @@
 
 ** Quadlet 自启（推荐，替代 podman generate）
    Podman 现已推荐使用 Quadlet（.container 文件）而非 =podman generate systemd=。
-          - rootless 放置路径：=~/.config/containers/systemd/=
-          - rootful 放置路径：=/etc/containers/systemd/=
+   - rootless 放置路径：=~/.config/containers/systemd/=
+   - rootful 放置路径：=/etc/containers/systemd/=
 
-            以 Caddy 为例，创建一个 =caddy.container=：
-            #+begin_src ini
-           [Unit]
-           Description=Caddy file server
-           After=network-online.target
-           Wants=network-online.target
+   以 Caddy 为例，创建一个 =caddy.container=：
+   #+begin_src ini
+   [Unit]
+   Description=Caddy file server
+   After=network-online.target
+   Wants=network-online.target
 
-           [Container]
-           Image=docker.io/caddy:latest
-           ContainerName=caddy
-           Volume=/share:/srv/share:ro
-           PublishPort=8080:8080
-           Exec=caddy file-server --root /srv/share --listen :8080 --browse
-           Pull=always
-           AutoUpdate=registry
+   [Container]
+   Image=docker.io/caddy:latest
+   ContainerName=caddy
+   Volume=/share:/srv/share:ro
+   PublishPort=8080:8080
+   Exec=caddy file-server --root /srv/share --listen :8080 --browse
+   Pull=always
+   AutoUpdate=registry
 
-           [Service]
-           Restart=always
+   [Service]
+   Restart=always
 
-           [Install]
-           WantedBy=default.target
-            #+end_src
+   [Install]
+   WantedBy=default.target
+   #+end_src
 
-            Quadlet 运行机制要点：
-            - 段名：源文件使用 [Container]；[X-Container] 仅出现在生成输出中。
-            - 其他段：可额外写入 [Service]、[Install]，systemd 会照常解析。
-            - 重启策略：在 [Container] 中没有 Restart/RestartPolicy；需在 [Service] 中写 Restart=always（Podman 无 unless-stopped 与 always 的区别，always 等价）。
-            - 自启动：[Install] 中加入 WantedBy=default.target；执行 `systemctl --user daemon-reload` 后，Quadlet 会生成标记为 generated 的 .service 并挂到 default.target。generated 单元不能 enable，但已通过 [Install] 关联目标。
-            - 开机与 linger：
-              - 未启用 linger 时，user manager 只在登录后运行，容器登录后才启动。
-              - 启用 linger 后（`sudo loginctl enable-linger $USER`），user manager 开机即运行，容器随系统自启。
+   Quadlet 运行机制要点：
+   - 段名：源文件使用 [Container]；[X-Container] 仅出现在生成输出中。
+   - 其他段：可额外写入 [Service]、[Install]，systemd 会照常解析。
+   - 重启策略：在 [Container] 中没有 Restart/RestartPolicy；需在 [Service] 中写 Restart=always（Podman 无 unless-stopped 与 always 的区别，always 等价）。
+   - 自启动：[Install] 中加入 WantedBy=default.target；执行 `systemctl --user daemon-reload` 后，Quadlet 会生成标记为 generated 的 .service 并挂到 default.target。generated 单元不能 enable，但已通过 [Install] 关联目标。
+   - 开机与 linger：
+     - 未启用 linger 时，user manager 只在登录后运行，容器登录后才启动。
+     - 启用 linger 后（`sudo loginctl enable-linger $USER`），user manager 开机即运行，容器随系统自启。
 
-            实际使用步骤：
-            1) 写 .container 到 `~/.config/containers/systemd/`，包含 [Container]、[Service] Restart=always、[Install] WantedBy=default.target。
-            2) 执行：
-               #+begin_src sh
-                 systemctl --user daemon-reload
-                 # 立即运行（可选，但建议执行一次以立刻生效）
-                 systemctl --user start caddy.service
-               #+end_src
-            3) 确认：
-               #+begin_src sh
-                 systemctl --user status caddy.service
-               #+end_src
-            4) 如需真正随开机启动（无需登录）：
-               #+begin_src sh
-                 sudo loginctl enable-linger "$USER"
-               #+end_src
+   实际使用步骤：
+   1) 写 .container 到 `~/.config/containers/systemd/`，包含 [Container]、[Service] Restart=always、[Install] WantedBy=default.target。
+   2) 执行：
+      #+begin_src sh
+        systemctl --user daemon-reload
+        # 立即运行（可选，但建议执行一次以立刻生效）
+        systemctl --user start caddy.service
+      #+end_src
+   3) 确认：
+      #+begin_src sh
+        systemctl --user status caddy.service
+      #+end_src
+   4) 如需真正随开机启动（无需登录）：
+      #+begin_src sh
+        sudo loginctl enable-linger "$USER"
+      #+end_src
 
-            - rootless 部署与启动：
-            #+begin_src sh
-              mkdir -p ~/.config/containers/systemd
-              cp caddy.container ~/.config/containers/systemd/
-              systemctl --user daemon-reload
-              systemctl --user start caddy.service
-              # 查看状态/日志
-              systemctl --user status caddy.service
-              journalctl --user -u caddy -f
-              # （可选）开机自启用户服务
-              loginctl enable-linger "$USER"
-            #+end_src
+   - rootless 部署与启动：
+   #+begin_src sh
+     mkdir -p ~/.config/containers/systemd
+     cp caddy.container ~/.config/containers/systemd/
+     systemctl --user daemon-reload
+     systemctl --user start caddy.service
+     # 查看状态/日志
+     systemctl --user status caddy.service
+     journalctl --user -u caddy -f
+     # （可选）开机自启用户服务
+     loginctl enable-linger "$USER"
+   #+end_src
 
-            - rootful 部署与启动（系统服务）：
-            #+begin_src sh
-              sudo mkdir -p /etc/containers/systemd
-              sudo cp caddy.container /etc/containers/systemd/
-              sudo systemctl daemon-reload
-              sudo systemctl start caddy.service
-            #+end_src
+   - rootful 部署与启动（系统服务）：
+   #+begin_src sh
+     sudo mkdir -p /etc/containers/systemd
+     sudo cp caddy.container /etc/containers/systemd/
+     sudo systemctl daemon-reload
+     sudo systemctl start caddy.service
+   #+end_src
 
-            - 自动更新（可选，对应 =AutoUpdate=registry=）：
-            #+begin_src sh
-              # rootless
-              systemctl --user enable --now podman-auto-update.timer
-              # rootful
-              sudo systemctl enable --now podman-auto-update.timer
-            #+end_src
+   - 自动更新（可选，对应 =AutoUpdate=registry=）：
+   #+begin_src sh
+     # rootless
+     systemctl --user enable --now podman-auto-update.timer
+     # rootful
+     sudo systemctl enable --now podman-auto-update.timer
+   #+end_src
 
-            提示：rootless 模式下直接映射到宿主 1024 以下端口（如 80）可能受限，若失败可：
-            - 使用 >=1024 的宿主端口（如 8080:80），或
-            - 调整 sysctl：sudo sysctl net.ipv4.ip_unprivileged_port_start=0，或改用 rootful。
+   提示：rootless 模式下直接映射到宿主 1024 以下端口（如 80）可能受限，若失败可：
+   - 使用 >=1024 的宿主端口（如 8080:80），或
+   - 调整 sysctl：sudo sysctl net.ipv4.ip_unprivileged_port_start=0，或改用 rootful。
 
 ** 存储位置（与 ZFS 数据集对应）
    - rootful：/var/lib/containers/storage  （rpool/containers）
