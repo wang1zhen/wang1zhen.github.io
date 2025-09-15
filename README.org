@@ -1,0 +1,54 @@
+#+TITLE: wang1zhen.github.io — Hugo Blog
+
+* 概览
+  本仓库是个人博客，使用 [[https://gohugo.io/][Hugo]] 构建，主题为 [[https://github.com/adityatelange/hugo-PaperMod][PaperMod]]（通过 Git submodule 引入）。
+
+  - 站点配置：`hugo.toml`（当前 `theme = "PaperMod"`）
+  - 主题路径：`themes/PaperMod`（受 Git submodule 管理）
+  - 内容目录：`content/`，静态资源：`static/`，自定资源：`assets/`
+
+* 本地预览
+  #+begin_src bash
+    hugo server -D
+    # -D 显示草稿（draft）文章
+  #+end_src
+
+  访问输出的本地地址（默认 http://localhost:1313/）。保存变更会触发热重载。
+
+* 构建站点
+  #+begin_src bash
+    hugo
+    # 生成到 ./public 目录
+  #+end_src
+
+* 主题（theme）作为 Git submodule 的常用操作
+  本仓库已在 `.gitmodules` 中配置：
+
+  #+begin_src ini
+[submodule "themes/PaperMod"]
+    path = themes/PaperMod
+    url = https://github.com/adityatelange/hugo-PaperMod.git
+  #+end_src
+
+  请务必在克隆、更新和切换主题时配合 submodule 命令。
+
+** 一次性完整克隆（推荐）
+   #+begin_src bash
+     git clone --recurse-submodules git@github.com:wang1zhen/wang1zhen.github.io.git
+     # 或使用 HTTPS：
+     git clone --recurse-submodules https://github.com/wang1zhen/wang1zhen.github.io.git
+   #+end_src
+
+** 已克隆但未带 submodules 的情况
+   #+begin_src bash
+     git submodule update --init --recursive
+   #+end_src
+
+** 更新主题到上游最新提交
+   #+begin_src bash
+     git submodule update --remote --recursive
+     git add themes/PaperMod
+     git commit -m "Update PaperMod submodule"
+   #+end_src
+
+   提示：如需跟踪特定分支，可在 `.gitmodules` 为该子模块配置 `branch = <branch>` 并 `git submodule sync`。

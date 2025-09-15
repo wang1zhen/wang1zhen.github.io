@@ -1,7 +1,7 @@
 +++
 title = "arch on zfs 在 zfs 上安装 archlinux"
 author = ["wang1zhen"]
-date = 2025-09-15T01:19:00+09:00
+date = 2025-09-15T00:00:00+09:00
 draft = false
 +++
 
@@ -261,35 +261,35 @@ zpool create -f \
 ### 创建ZFS数据集 {#创建zfs数据集}
 
 ```sh
- # 创建根容器数据集
- zfs create -o mountpoint=none zroot/ROOT
+# 创建根容器数据集
+zfs create -o mountpoint=none zroot/ROOT
 
- # 创建系统根数据集
- zfs create -o mountpoint=/ -o canmount=noauto zroot/ROOT/root
+# 创建系统根数据集
+zfs create -o mountpoint=/ -o canmount=noauto zroot/ROOT/root
 
- # 创建用户相关数据集
- zfs create -o mountpoint=/home zroot/home
+# 创建用户相关数据集
+zfs create -o mountpoint=/home zroot/home
 
- # 创建系统数据集
- zfs create -o mountpoint=/var zroot/var
- zfs create -o mountpoint=/var/log zroot/var/log
- zfs create -o mountpoint=/var/cache zroot/var/cache
+# 创建系统数据集
+zfs create -o mountpoint=/var zroot/var
+zfs create -o mountpoint=/var/log zroot/var/log
+zfs create -o mountpoint=/var/cache zroot/var/cache
 
- # 创建游戏数据集 - 大文件优化
- zfs create \
-     -o mountpoint=/games \
-     -o compression=zstd \
-     -o recordsize=1M \
-     -o atime=off \
-     zroot/games
+# 创建游戏数据集 - 大文件优化
+zfs create \
+    -o mountpoint=/games \
+    -o compression=zstd \
+    -o recordsize=1M \
+    -o atime=off \
+    zroot/games
 
- # 创建 Podman 数据集（rootful）- 小文件优化
- zfs create \
-     -o mountpoint=/var/lib/containers \
-     -o compression=zstd \
-     -o recordsize=64K \
-     -o atime=off \
-     zroot/containers
+# 创建 Podman 数据集（rootful）- 小文件优化
+zfs create \
+    -o mountpoint=/var/lib/containers \
+    -o compression=zstd \
+    -o recordsize=64K \
+    -o atime=off \
+    zroot/containers
 
 # 创建 Podman 数据集（rootless，可选）
 # 设置变量：新系统的主要用户名（请替换为实际用户名）
@@ -301,22 +301,22 @@ zfs create \
     -o recordsize=64K \
     -o atime=off \
     zroot/containers-${user_arch}
- # 创建临时文件数据集 - 性能优化
- zfs create \
-     -o mountpoint=/tmp \
-     -o compression=off \
-     -o sync=disabled \
-     -o atime=off \
-     -o devices=off \
-     -o exec=on \
-     -o setuid=off \
-     zroot/tmp
+# 创建临时文件数据集 - 性能优化
+zfs create \
+    -o mountpoint=/tmp \
+    -o compression=off \
+    -o sync=disabled \
+    -o atime=off \
+    -o devices=off \
+    -o exec=on \
+    -o setuid=off \
+    zroot/tmp
 
- # 创建SMB共享数据集 - 私有共享，性能优化（Samba 另行配置）
- zfs create \
-     -o mountpoint=/share \
-     -o atime=off \
-     zroot/share
+# 创建SMB共享数据集 - 私有共享，性能优化（Samba 另行配置）
+zfs create \
+    -o mountpoint=/share \
+    -o atime=off \
+    zroot/share
 ```
 
 
@@ -1469,19 +1469,18 @@ sudo systemctl start zfs-scrub-monthly@zroot.timer
 6.  进入chroot：=arch-chroot /mnt=
 7.  执行修复操作
 
-**系统回滚示例：**
-
-```sh
-# 在Live环境中回滚到pacman操作前的快照
-zpool import -R /mnt zroot
-zfs rollback zroot/ROOT/root@pacman_pre_YYYYMMDD_HHMMSS
-zfs mount zroot/ROOT/root
-mount /dev/nvme0n1p1 /mnt/boot
-arch-chroot /mnt
-grub-mkconfig -o /boot/grub/grub.cfg
-exit
-reboot
-```
+    **系统回滚示例：**
+    ```sh
+    # 在Live环境中回滚到pacman操作前的快照
+    zpool import -R /mnt zroot
+    zfs rollback zroot/ROOT/root@pacman_pre_YYYYMMDD_HHMMSS
+    zfs mount zroot/ROOT/root
+    mount /dev/nvme0n1p1 /mnt/boot
+    arch-chroot /mnt
+    grub-mkconfig -o /boot/grub/grub.cfg
+    exit
+    reboot
+    ```
 
 
 ## 常用命令速查 {#常用命令速查}
@@ -1587,7 +1586,7 @@ cat /proc/acpi/wakeup | grep -E "(XHC|XH00)"
 ## 附录：Podman 常用命令与日常维护 {#附录-podman-常用命令与日常维护}
 
 
-## 基本信息与运行 {#基本信息与运行}
+### 基本信息与运行 {#基本信息与运行}
 
 ```sh
 podman info                 # 查看系统与存储信息
@@ -1595,7 +1594,7 @@ podman run --rm hello-world # 快速自检运行
 ```
 
 
-## 镜像与容器管理 {#镜像与容器管理}
+### 镜像与容器管理 {#镜像与容器管理}
 
 ```sh
 podman images               # 列出镜像
@@ -1608,7 +1607,7 @@ podman stop web && podman rm web
 ```
 
 
-## 清理与空间回收 {#清理与空间回收}
+### 清理与空间回收 {#清理与空间回收}
 
 ```sh
 podman image prune -a       # 清理未使用镜像
@@ -1620,7 +1619,7 @@ podman system prune -a      # 全面清理（谨慎）
 ```
 
 
-## Quadlet 自启（推荐，替代 podman generate） {#quadlet-自启-推荐-替代-podman-generate}
+### Quadlet 自启（推荐，替代 podman generate） {#quadlet-自启-推荐-替代-podman-generate}
 
 Podman 现已推荐使用 Quadlet（.container 文件）而非 =podman generate systemd=。
 
@@ -1723,13 +1722,13 @@ sudo systemctl enable --now podman-auto-update.timer
 -   调整 sysctl：sudo sysctl net.ipv4.ip_unprivileged_port_start=0，或改用 rootful。
 
 
-## 存储位置（与 ZFS 数据集对应） {#存储位置-与-zfs-数据集对应}
+### 存储位置（与 ZFS 数据集对应） {#存储位置-与-zfs-数据集对应}
 
 -   rootful：/var/lib/containers/storage  （zroot/containers）
 -   rootless：~/.local/share/containers/storage  （zroot/containers-${user_arch}）
 
 
-## 创建系统服务持久化配置 {#创建系统服务持久化配置}
+### 创建系统服务持久化配置 {#创建系统服务持久化配置}
 
 ```sh
 # 创建systemd服务来持久化唤醒设备配置

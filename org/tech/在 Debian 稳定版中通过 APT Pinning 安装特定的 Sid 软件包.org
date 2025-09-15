@@ -1,0 +1,51 @@
+#+hugo_base_dir: ../../
+#+hugo_section: tech
+#+STARTUP: content
+#+TITLE: 在 Debian 稳定版中通过 APT Pinning 安装特定的 Sid 软件包
+#+author: wang1zhen
+#+DATE:<2024-08-03 Sat>
+#+EXPORT_FILE_NAME: 在 Debian 稳定版中通过 APT Pinning 安装特定的 Sid 软件包
+#+hugo_draft: false
+
+为了在 Debian 稳定版中安装特定来自 Sid 的软件包，同时保持系统的整体稳定性，可以通过 APT Pinning 来实现精细化的版本控制。
+
+* 配置 APT Pinning
+
+  在 =/etc/apt/preferences.d/sid= 中设置优先级。
+
+  #+begin_example
+    Package: *
+    Pin: release a=stable
+    Pin-Priority: 900
+
+    Package: *
+    Pin: release a=stable-updates
+    Pin-Priority: 900
+
+    Package: *
+    Pin: release a=stable-security
+    Pin-Priority: 900
+
+    Package: *
+    Pin: release a=stable-backports
+    Pin-Priority: 800
+
+    Package: *
+    Pin: release a=unstable
+    Pin-Priority: 100
+  #+end_example
+
+* 只对特定包从 sid 更新
+  =/etc/apt/preferences.d/sid=
+  #+begin_example
+    Package: emacs-pgtk hugo eza
+    Pin: release a=unstable
+    Pin-Priority: 1001
+  #+end_example
+* 应用
+
+  #+begin_src bash
+    sudo apt update
+    apt list --upgradable
+    apt policy <some-package>
+  #+end_src

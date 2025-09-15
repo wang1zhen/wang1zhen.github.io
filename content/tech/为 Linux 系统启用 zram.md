@@ -1,7 +1,7 @@
 +++
 title = "为 Linux 系统启用 zram"
-author = ["user name"]
-date = 2024-07-22T14:08:00+09:00
+author = ["wang1zhen"]
+date = 2024-07-22T00:00:00+09:00
 draft = false
 +++
 

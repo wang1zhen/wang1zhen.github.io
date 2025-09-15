@@ -1,7 +1,7 @@
 +++
 title = "在 Debian 稳定版中通过 APT Pinning 安装特定的 Sid 软件包"
 author = ["wang1zhen"]
-date = 2024-08-03T19:45:00+09:00
+date = 2024-08-03T00:00:00+09:00
 draft = false
 +++
 

@@ -1,6 +1,7 @@
 +++
-title = "About me"
+title = "about"
 author = ["wang1zhen"]
+date = 2025-09-15T00:00:00+09:00
 draft = false
 +++
 
@@ -14,16 +15,16 @@ draft = false
 
 <div class="ox-hugo-table my-table">
 
-| 2023 --      | Master        | Tokyo University             |
-|--------------|---------------|------------------------------|
-|              | 硕士          | 东京大学                     |
-|              | 修士          | 東京大学                     |
-| 2019 -- 2020 | Master (quit) | University of Melbourne      |
-|              | 硕士（退学）  | 墨尔本大学                   |
-|              | 修士（中退）  | メルボルン大学               |
-| 2014 -- 2018 | Bachelor      | Shanghai Jiaotong University |
-|              | 本科          | 上海交通大学                 |
-|              | 学部          | 上海交通大学                 |
+| 2023.10 -- 2025.9 | Master        | Tokyo University              |
+|-------------------|---------------|-------------------------------|
+|                   | 硕士          | 东京大学                      |
+|                   | 修士          | 東京大学                      |
+| 2019.1 -- 2019.12 | Master (quit) | University of Melbourne       |
+|                   | 硕士（退学）  | 墨尔本大学                    |
+|                   | 修士（中退）  | メルボルン大学                |
+| 2014.9 -- 2018.8  | Bachelor      | Shanghai Jiao Tong University |
+|                   | 本科          | 上海交通大学                  |
+|                   | 学部          | 上海交通大学                  |
 
 </div>
 
