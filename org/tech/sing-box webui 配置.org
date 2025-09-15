@@ -1,0 +1,36 @@
+#+hugo_base_dir: ../../
+#+hugo_section: tech
+#+STARTUP: content
+#+TITLE: sing-box webui 配置
+#+author: wang1zhen
+#+DATE: <2025-09-15 Mon>
+#+EXPORT_FILE_NAME: sing-box webui 配置
+#+hugo_draft: true
+
+* 安装 sing-box
+  #+BEGIN_SRC bash
+    yay -S sing-box
+  #+END_SRC
+
+* 获取订阅配置
+  从 prprcloud 后台复制订阅链接，然后下载到配置目录：
+  #+BEGIN_SRC bash
+    curl -o ~/.config/sing-box/config.json '你的订阅链接'
+  #+END_SRC
+  如果在海外使用，选择直连/direct 节点。
+
+* 运行 sing-box
+  #+BEGIN_SRC bash
+    sudo sing-box run -c ~/.config/sing-box/config.json
+  #+END_SRC
+
+* 使用 Dashboard
+  - 如果需要 Zashboard，直接访问：
+    http://board.zash.run.place/
+    在设置页无需填写任何内容。
+  - 如果不使用 Zashboard，也可以直接访问：
+    http://localhost:9090
+    搭配 yacd 使用。
+
+* Aff 链接
+  [[https://prpr.96110.cn.com/aff.php?aff=6492][prprcloud 订阅链接]]
