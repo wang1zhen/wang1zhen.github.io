@@ -2,7 +2,7 @@
 title = "sing-box webui 配置"
 author = ["wang1zhen"]
 date = 2025-09-15T00:00:00+09:00
-draft = true
+draft = false
 +++
 
 ## 安装 sing-box {#安装-sing-box}
