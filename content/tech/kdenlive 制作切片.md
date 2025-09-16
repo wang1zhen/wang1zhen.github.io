@@ -1,0 +1,119 @@
++++
+title = "kdenlive 制作切片"
+author = ["wang1zhen"]
+date = 2025-09-16T00:00:00+09:00
+draft = false
++++
+
+## 工具与素材准备 {#工具与素材准备}
+
+-   剪辑：Kdenlive
+-   字幕生成：Whisper（large-v3 模型）
+-   字幕美化：Aegisub
+-   AI 分离：Demucs（--two-stems=vocals）
+
+音频统一规格：48 kHz，双声道，WAV。
+
+```bash
+# 从录播提取音频
+ffmpeg -i record.mp4 -vn -ac 2 -ar 48000 record.wav
+```
+
+
+## Python 环境准备 {#python-环境准备}
+
+1.  在项目目录创建虚拟环境并同步依赖：
+    ```bash
+    uv sync
+    ```
+2.  激活虚拟环境：
+    ```bash
+    source .venv/bin/activate
+    ```
+
+
+## 粗剪与定位 {#粗剪与定位}
+
+1.  在 Kdenlive 导入录播视频。
+2.  找到歌曲片段，切成独立序列。
+3.  命名清晰：Song01_xxx。
+
+
+## 自动字幕生成（Whisper large-v3） {#自动字幕生成-whisper-large-v3}
+
+运行识别（示例：日语）：
+
+```bash
+whisper record.wav --model large-v3 --language ja --task transcribe --output_format srt
+```
+
+-   record.wav → 输入音频文件
+-   --model large-v3 → 使用 Whisper 最新大模型，精度最高
+-   --language ja → 指定音频语言（日语，中文 zh，英文 en）
+-   --task transcribe → 转写模式（输出原语言，不做翻译）
+-   --output_format srt → 输出 .srt 字幕文件，带时间戳
+
+输出文件：record.srt。
+
+
+## 字幕美化（Aegisub） {#字幕美化-aegisub}
+
+1.  在 Aegisub 打开 record.srt。
+2.  在 Styles Manager 创建样式：
+    ```ass
+    Style: SongStyle,Noto Sans CJK JP,48,&H00FFFFFF,&H000000FF,&H00FACE87,&H64000000,0,0,0,0,100,100,0,0,1,3,1,2,10,10,30,1
+    ```
+
+    -   PrimaryColour = &amp;H00FFFFFF → 白色文字
+    -   OutlineColour = &amp;H00FACE87 → 浅蓝描边 (RGB=135,206,250)
+    -   Outline=3 → 描边厚度
+    -   Shadow=1 → 阴影
+    -   Alignment=2 → 底部居中
+
+    -   应用样式到所有字幕行。
+    -   导出为 .ass 文件。
+
+
+## 人声与伴奏分离（Demucs two-stems） {#人声与伴奏分离-demucs-two-stems}
+
+运行：
+
+```bash
+demucs --two-stems=vocals record.wav
+```
+
+-   --two-stems=vocals → 输出人声与去人声两轨
+-   record.wav → 输入音频
+
+输出目录：./separated/htdemucs/record/
+
+-   vocals.wav → 人声轨
+-   no_vocals.wav → 伴奏轨
+
+
+## 时间轴混音（Kdenlive） {#时间轴混音-kdenlive}
+
+轨道布局：
+
+-   A1：伴奏 (no_vocals.wav)
+-   A2：人声 (vocals.wav)
+-   A3：不用
+
+混音规则：
+
+-   唱歌时：A1 + A2（A1 音量比 A2 低 3–6 dB）
+-   聊天时：A1 保留，A2 静音
+
+分段调音量操作：
+
+1.  在 A2 显示音量包络线。
+2.  聊天段起点和终点各加关键帧。
+3.  聊天段之间直接拉到 -∞（瞬间静音，无需淡入淡出）。
+
+
+## 导出成品 {#导出成品}
+
+1.  在 Kdenlive 渲染时，选择内嵌字幕，将 .ass 烧录进视频。
+2.  导出设置：
+    -   视频：H.264，保持原分辨率和帧率
+    -   音频：AAC 320 kbps
