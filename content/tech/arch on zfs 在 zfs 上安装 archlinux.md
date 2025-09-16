@@ -1108,7 +1108,7 @@ jobs:
     }
     snapshotting:
       type: periodic
-      prefix: auto_
+      prefix: hourly_
       interval: 1h
     pruning:
       keep:
