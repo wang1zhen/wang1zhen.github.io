@@ -8,7 +8,7 @@ draft = false
 ## 工具与素材准备 {#工具与素材准备}
 
 -   剪辑：Kdenlive
--   字幕生成：Whisper（large-v3 模型）
+-   字幕生成：Whisper（medium 模型）
 -   字幕美化：Aegisub
 -   AI 分离：Demucs（--two-stems=vocals）
 
@@ -34,16 +34,16 @@ demucs --two-stems=vocals record.wav
 -   no_vocals.wav → 伴奏轨
 
 
-## 自动字幕生成（Whisper large-v3） {#自动字幕生成-whisper-large-v3}
+## 自动字幕生成（Whisper medium） {#自动字幕生成-whisper-medium}
 
 仅对人声生成字幕：
 
 ```bash
-whisper vocals.wav --model large-v3 --language ja --task transcribe --output_format srt
+whisper vocals.wav --model medium --language ja --task transcribe --output_format srt
 ```
 
 -   vocals.wav → 输入音频文件（人声轨）
--   --model large-v3 → 使用精度最高的模型
+-   --model medium
 -   --language ja → 指定语言（日语，中文 zh，英文 en）
 -   --task transcribe → 转写模式（保持原语言）
 -   --output_format srt → 输出带时间戳的 .srt
