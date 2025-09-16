@@ -1102,9 +1102,8 @@ jobs:
   - name: "system_snapshots"
     type: snap
     filesystems: {
-      "zroot/ROOT<": true,
-      "zroot/home<": true,
-      "zroot/var<": true
+      "zroot/ROOT/root": true,
+      "zroot/home<": true
     }
     snapshotting:
       type: periodic
@@ -1120,9 +1119,8 @@ jobs:
   - name: "daily_snapshots"
     type: snap
     filesystems: {
-      "zroot/ROOT<": true,
-      "zroot/home<": true,
-      "zroot/var<": true
+      "zroot/ROOT/root": true,
+      "zroot/home<": true
     }
     snapshotting:
       type: periodic
@@ -1138,7 +1136,7 @@ jobs:
   - name: "weekly_snapshots"
     type: snap
     filesystems: {
-      "zroot/ROOT<": true,
+      "zroot/ROOT/root": true,
       "zroot/home<": true
     }
     snapshotting:
@@ -1155,7 +1153,7 @@ jobs:
   - name: "monthly_snapshots"
     type: snap
     filesystems: {
-      "zroot/ROOT<": true,
+      "zroot/ROOT/root": true,
       "zroot/home<": true
     }
     snapshotting:

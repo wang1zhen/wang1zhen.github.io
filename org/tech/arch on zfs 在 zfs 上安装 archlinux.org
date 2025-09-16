@@ -977,9 +977,8 @@
        - name: "system_snapshots"
          type: snap
          filesystems: {
-           "zroot/ROOT<": true,
-           "zroot/home<": true,
-           "zroot/var<": true
+           "zroot/ROOT/root": true,
+           "zroot/home<": true
          }
          snapshotting:
            type: periodic
@@ -995,9 +994,8 @@
        - name: "daily_snapshots"
          type: snap
          filesystems: {
-           "zroot/ROOT<": true,
-           "zroot/home<": true,
-           "zroot/var<": true
+           "zroot/ROOT/root": true,
+           "zroot/home<": true
          }
          snapshotting:
            type: periodic
@@ -1013,7 +1011,7 @@
        - name: "weekly_snapshots"
          type: snap
          filesystems: {
-           "zroot/ROOT<": true,
+           "zroot/ROOT/root": true,
            "zroot/home<": true
          }
          snapshotting:
@@ -1030,7 +1028,7 @@
        - name: "monthly_snapshots"
          type: snap
          filesystems: {
-           "zroot/ROOT<": true,
+           "zroot/ROOT/root": true,
            "zroot/home<": true
          }
          snapshotting:
