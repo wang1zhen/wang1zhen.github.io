@@ -746,7 +746,7 @@ set -uo pipefail
 
 SNAPSHOT_PREFIX="pacman"
 MAX_SNAPSHOTS=50
-DATASETS=("zroot/ROOT/root" "zroot/var" "zroot/home")
+DATASETS=("zroot/ROOT/root" "zroot/home")
 LOG_FILE="/var/log/zfs-pacman-snapshots.log"
 TIMESTAMP="$(date +%Y%m%d_%H%M%S)"
 

@@ -800,9 +800,8 @@ jobs:
   - name: "hourly_snapshots"
     type: snap
     filesystems: {
-      "rpool/ROOT<": true,
-      "rpool/home<": true,
-      "rpool/var<": true
+      "rpool/ROOT/debian": true,
+      "rpool/home<": true
     }
     snapshotting:
       type: periodic
@@ -818,9 +817,8 @@ jobs:
   - name: "daily_snapshots"
     type: snap
     filesystems: {
-      "rpool/ROOT<": true,
-      "rpool/home<": true,
-      "rpool/var<": true
+      "rpool/ROOT/debian": true,
+      "rpool/home<": true
     }
     snapshotting:
       type: periodic
@@ -836,7 +834,7 @@ jobs:
   - name: "weekly_snapshots"
     type: snap
     filesystems: {
-      "rpool/ROOT<": true,
+      "rpool/ROOT/debian": true,
       "rpool/home<": true
     }
     snapshotting:
@@ -853,7 +851,7 @@ jobs:
   - name: "monthly_snapshots"
     type: snap
     filesystems: {
-      "rpool/ROOT<": true,
+      "rpool/ROOT/debian": true,
       "rpool/home<": true
     }
     snapshotting:
@@ -891,7 +889,7 @@ set -uo pipefail
 
 SNAPSHOT_PREFIX="apt"
 MAX_SNAPSHOTS=50
-DATASETS=("rpool/ROOT/debian" "rpool/var" "rpool/home")
+DATASETS=("rpool/ROOT/debian" "rpool/home")
 LOG_FILE="/var/log/zfs-apt-snapshots.log"
 TIMESTAMP="$(date +%Y%m%d_%H%M%S)"
 
