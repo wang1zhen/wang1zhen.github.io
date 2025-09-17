@@ -1,6 +1,7 @@
 +++
 title = "修改网卡 MAC 地址"
 author = ["wang1zhen"]
+description = "记录在 Windows 注册表启用 Network Address 修改 MAC。"
 date = 2024-10-16T00:00:00+09:00
 draft = false
 +++

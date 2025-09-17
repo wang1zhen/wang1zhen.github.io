@@ -5,6 +5,7 @@
 #+author: wang1zhen
 #+DATE: <2024-07-17 Wed>
 #+EXPORT_FILE_NAME: Installation of Arch Linux with btrfs and snapper 基于 btrfs 与 snapper 安装 Arch Linux
+#+description: 详解以 btrfs 与 snapper 部署 Arch Linux 的安装流程。
 #+hugo_draft: false
 
 * 启动 Live ISO 并连接 Wi-Fi

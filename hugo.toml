@@ -1,7 +1,9 @@
 baseURL = 'https://blog.wang1zhen.com/'
-languageCode = 'en-us'
+languageCode = 'zh-cn'
+defaultContentLanguage = 'zh-cn'
 title = "wang1zhen's Homepage"
 theme = 'PaperMod'
+enableRobotsTXT = true
 
 [markup.goldmark.renderer]
   unsafe = true
@@ -29,6 +31,10 @@ name = "github"
 url = "https://github.com/wang1zhen/"
 
 [params]
+  env = "production"
+  description = "wang1zhen 的个人博客，包括各种Linux、日语学习和物理相关的读书笔记等。"
+  author = ["wang1zhen"]
+  keywords = ["linux", "日语", "物理", "arch", "debian", "zfs", "blog"]
   ShowReadingTime = false
   ShowBreadCrumbs = false
   ShowCodeCopyButtons = true

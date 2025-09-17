@@ -5,6 +5,7 @@
 #+author: wang1zhen
 #+DATE: <2025-09-16 Tue>
 #+EXPORT_FILE_NAME: kdenlive 制作切片
+#+description: 梳理用 Kdenlive、Whisper、Demucs 制作剪辑与字幕步骤。
 #+hugo_draft: false
 
 * 工具与素材准备

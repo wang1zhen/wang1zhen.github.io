@@ -5,6 +5,7 @@
 #+author: wang1zhen
 #+DATE:<2024-08-03 Sat>
 #+EXPORT_FILE_NAME: 在 Debian 稳定版中通过 APT Pinning 安装特定的 Sid 软件包
+#+description: 讲解利用 APT Pinning 在稳定版精准拉取 Sid 软件。
 #+hugo_draft: false
 
 为了在 Debian 稳定版中安装特定来自 Sid 的软件包，同时保持系统的整体稳定性，可以通过 APT Pinning 来实现精细化的版本控制。

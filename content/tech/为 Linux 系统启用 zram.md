@@ -1,6 +1,7 @@
 +++
 title = "为 Linux 系统启用 zram"
 author = ["wang1zhen"]
+description = "介绍 zram-generator 设置压缩内存及相关系统参数。"
 date = 2024-07-22T00:00:00+09:00
 draft = false
 +++

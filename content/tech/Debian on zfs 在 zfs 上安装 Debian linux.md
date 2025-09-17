@@ -1,6 +1,7 @@
 +++
 title = "Debian on zfs 在 zfs 上安装 Debian linux"
 author = ["wang1zhen"]
+description = "分步骤在 ZFS 阵列上安装 Debian 13 并配置系统。"
 date = 2025-09-15T00:00:00+09:00
 draft = false
 +++

@@ -5,6 +5,7 @@
 #+author: wang1zhen
 #+date: <2024-09-18 Wed>
 #+EXPORT_FILE_NAME: 盘丝洞弱电柜
+#+description: 展示弱电柜的路由、存储与供电设备配置。
 #+hugo_draft: false
 
 * 盘丝洞弱电柜介绍 1 - 设备一览

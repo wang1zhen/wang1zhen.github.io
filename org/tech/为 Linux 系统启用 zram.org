@@ -5,6 +5,7 @@
 #+author: wang1zhen
 #+DATE: <2024-07-22 Mon>
 #+EXPORT_FILE_NAME: 为 Linux 系统启用 zram
+#+description: 介绍 zram-generator 设置压缩内存及相关系统参数。
 #+hugo_draft: false
 
 在 linux 系统中使用 zram 可以对内存进行压缩（现代 CPU 下几乎即时），提升表现。

@@ -1,6 +1,7 @@
 +++
 title = "arch on zfs 在 zfs 上安装 archlinux"
 author = ["wang1zhen"]
+description = "使用自定义 archiso 在 ZFS 上部署 Arch Linux 的详细指南。"
 date = 2025-09-15T00:00:00+09:00
 draft = false
 +++

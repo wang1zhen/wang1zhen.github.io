@@ -5,6 +5,7 @@
 #+author: wang1zhen
 #+DATE: <2024-10-16 Wed>
 #+EXPORT_FILE_NAME: 修改网卡 MAC 地址
+#+description: 记录在 Windows 注册表启用 Network Address 修改 MAC。
 #+hugo_draft: false
 
 From [[https://superuser.com/questions/1011721/how-do-i-change-wifi-adapter-mac-address-for-win7-8-10-network-adapter-advance]]

@@ -1,6 +1,7 @@
 +++
 title = "在 Debian 稳定版中通过 APT Pinning 安装特定的 Sid 软件包"
 author = ["wang1zhen"]
+description = "讲解利用 APT Pinning 在稳定版精准拉取 Sid 软件。"
 date = 2024-08-03T00:00:00+09:00
 draft = false
 +++

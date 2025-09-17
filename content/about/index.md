@@ -1,6 +1,7 @@
 +++
 title = "about"
 author = ["wang1zhen"]
+description = "个人简介"
 date = 2025-09-15T00:00:00+09:00
 draft = false
 +++

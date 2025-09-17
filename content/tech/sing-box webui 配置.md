@@ -1,6 +1,7 @@
 +++
 title = "sing-box webui 配置"
 author = ["wang1zhen"]
+description = "说明安装 sing-box、导入订阅并使用可视化控制面板。"
 date = 2025-09-15T00:00:00+09:00
 draft = false
 +++

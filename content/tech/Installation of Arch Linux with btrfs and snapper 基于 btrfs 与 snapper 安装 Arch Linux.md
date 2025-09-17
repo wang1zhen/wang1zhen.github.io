@@ -1,6 +1,7 @@
 +++
 title = "Installation of Arch Linux with btrfs and snapper 基于 btrfs 与 snapper 安装 Arch Linux"
 author = ["wang1zhen"]
+description = "详解以 btrfs 与 snapper 部署 Arch Linux 的安装流程。"
 date = 2024-07-17T00:00:00+09:00
 draft = false
 +++

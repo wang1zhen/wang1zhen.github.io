@@ -1,6 +1,7 @@
 +++
 title = "kdenlive 制作切片"
 author = ["wang1zhen"]
+description = "梳理用 Kdenlive、Whisper、Demucs 制作剪辑与字幕步骤。"
 date = 2025-09-16T00:00:00+09:00
 draft = false
 +++
