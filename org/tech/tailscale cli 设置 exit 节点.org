@@ -1,0 +1,34 @@
+#+hugo_base_dir: ../../
+#+hugo_section: tech
+#+STARTUP: content
+#+TITLE: tailscale cli 设置 exit 节点
+#+author: wang1zhen
+#+DATE: <2025-09-18 Thu>
+#+EXPORT_FILE_NAME: tailscale cli 设置 exit 节点
+#+description: 为 tailscale cli 设置 exit 节点
+#+hugo_draft: false
+
+* 查看可用 Exit 节点
+  #+begin_src bash
+    tailscale status
+  #+end_src
+
+* 指定 Exit 节点
+  #+begin_src bash
+    # 节点名或 Tailscale 内网 IP
+    tailscale up --exit-node=mynode
+  #+end_src
+
+* 保留本地局域网访问
+  #+begin_src bash
+    tailscale up --exit-node=mynode --exit-node-allow-lan-access=true
+  #+end_src
+
+* 取消 Exit 节点
+  #+begin_src bash
+    tailscale up --exit-node=
+  #+end_src
+
+* 参数说明
+  - `--exit-node=<节点名或IP>` 指定出口节点
+  - `--exit-node-allow-lan-access` 允许访问本地局域网，否则所有流量都走 exit 节点
