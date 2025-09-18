@@ -5,8 +5,8 @@
 #+author: wang1zhen
 #+DATE: <2025-09-18 Thu>
 #+EXPORT_FILE_NAME: Linux 下 fio 测试硬盘读写性能
-#+description:
-#+hugo_draft: true
+#+description: 在 Linux 下 用 fio 来测试硬盘的实际读写性能（替代 DCrystal Disk Mark）
+#+hugo_draft: false
 
 * 核心选项说明
   - --name: 任务名

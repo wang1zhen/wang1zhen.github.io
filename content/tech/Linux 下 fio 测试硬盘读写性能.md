@@ -1,8 +1,9 @@
 +++
 title = "Linux 下 fio 测试硬盘读写性能"
 author = ["wang1zhen"]
+description = "在 Linux 下 用 fio 来测试硬盘的实际读写性能（替代 DCrystal Disk Mark）"
 date = 2025-09-18T00:00:00+09:00
-draft = true
+draft = false
 +++
 
 ## 核心选项说明 {#核心选项说明}
