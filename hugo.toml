@@ -41,3 +41,15 @@ url = "https://github.com/wang1zhen/"
   showtoc = true
   tocopen = true
   mainSections = ["tech", "learn"]
+
+[params.assets]
+  favicon = "favicon.ico"
+  favicon16x16 = "favicon-16.png"
+  favicon24x24 = "favicon-24.png"
+  favicon32x32 = "favicon-32.png"
+  favicon48x48 = "favicon-48.png"
+  favicon64x64 = "favicon-64.png"
+  favicon96x96 = "favicon-96.png"
+  favicon128x128 = "favicon-128.png"
+  favicon256x256 = "favicon-256.png"
+  apple_touch_icon = "favicon-256.png"
