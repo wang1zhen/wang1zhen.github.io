@@ -1226,25 +1226,25 @@
 
    以 Caddy 为例，创建一个 =caddy.container=：
    #+begin_src ini
-   [Unit]
-   Description=Caddy file server
-   After=network-online.target
-   Wants=network-online.target
+     [Unit]
+     Description=Caddy file server
+     After=network-online.target
+     Wants=network-online.target
 
-   [Container]
-   Image=docker.io/caddy:latest
-   ContainerName=caddy
-   Volume=/share:/srv/share:ro
-   PublishPort=8080:8080
-   Exec=caddy file-server --root /srv/share --listen :8080 --browse
-   Pull=always
-   AutoUpdate=registry
+     [Container]
+     Image=docker.io/caddy:latest
+     ContainerName=caddy
+     Volume=/share:/srv/share:ro
+     PublishPort=8080:8080
+     Exec=caddy file-server --root /srv/share --listen :8080 --browse
+     Pull=always
+     AutoUpdate=registry
 
-   [Service]
-   Restart=always
+     [Service]
+     Restart=always
 
-   [Install]
-   WantedBy=default.target
+     [Install]
+     WantedBy=default.target
    #+end_src
 
    Quadlet 运行机制要点：
