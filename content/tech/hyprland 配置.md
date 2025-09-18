@@ -61,13 +61,13 @@ resume 'hyprctl dispatch dpms on'
 
 ## 输入设备配置 {#输入设备配置}
 
-```ini
+```json
 input {
-kb_layout = us
-touchpad {
-natural_scroll = true   # 反向滚动
-}
-}
+  kb_layout = us
+  touchpad {
+    natural_scroll = true   # 反向滚动
+    }
+    }
 ```
 
 
@@ -111,15 +111,15 @@ bind=XF86MonBrightnessDown,exec,brightnessctl s 10%-
 
 ## 窗口美化 {#窗口美化}
 
-```ini
+```json
 decoration {
-active_opacity = 0.9
-inactive_opacity = 0.8
-blur = yes
-blur_size = 5
-blur_passes = 3
-blur_new_optimizations = on
-rounding = 8
+  active_opacity = 0.9
+  inactive_opacity = 0.8
+  blur = yes
+  blur_size = 5
+  blur_passes = 3
+  blur_new_optimizations = on
+  rounding = 8
 }
 ```
 
@@ -150,31 +150,31 @@ wallpaper = HDMI-A-1,/usr/share/backgrounds/gnome/adwaita-day.jpg
 
 路径：~/.config/waybar/config
 
-```ini
+```json
 {
-"layer": "top",
-"modules-left": ["workspaces"],
-"modules-center": ["clock"],
-"modules-right": ["network", "pulseaudio", "custom/brightness", "battery"],
+  "layer": "top",
+  "modules-left": ["workspaces"],
+  "modules-center": ["clock"],
+  "modules-right": ["network", "pulseaudio", "custom/brightness", "battery"],
 
-"pulseaudio": {
-"format": "{icon} {volume}%",
-"format-muted": " mute",
-"on-click": "pavucontrol"
-},
-"network": {
-"format-wifi": " {essid} {signalStrength}%",
-"format-ethernet": " {ipaddr}",
-"format-disconnected": "",
-"on-click": "nm-connection-editor"
-},
-"custom/brightness": {
-"format": "☀ {output}",
-"exec": "bash -c 'v=$(brightnessctl g); m=$(brightnessctl m); echo $((100*v/m))%';",
-"interval": 5,
-"on-scroll-up": "brightnessctl s +5%",
-"on-scroll-down": "brightnessctl s 5%-"
-}
+  "pulseaudio": {
+    "format": "{icon} {volume}%",
+    "format-muted": " mute",
+    "on-click": "pavucontrol"
+  },
+  "network": {
+    "format-wifi": " {essid} {signalStrength}%",
+    "format-ethernet": " {ipaddr}",
+    "format-disconnected": "",
+    "on-click": "nm-connection-editor"
+  },
+  "custom/brightness": {
+    "format": "☀ {output}",
+    "exec": "bash -c 'v=$(brightnessctl g); m=$(brightnessctl m); echo $((100*v/m))%';",
+    "interval": 5,
+    "on-scroll-up": "brightnessctl s +5%",
+    "on-scroll-down": "brightnessctl s 5%-"
+  }
 }
 ```
 

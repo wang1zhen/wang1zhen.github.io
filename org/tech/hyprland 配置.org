@@ -51,13 +51,13 @@
   - ~resume 'cmd'~ ：恢复活动后执行命令（这里是点亮屏幕）
 
 * 输入设备配置
-  #+begin_src ini
+  #+begin_src json
     input {
-    kb_layout = us
-    touchpad {
-    natural_scroll = true   # 反向滚动
-    }
-    }
+      kb_layout = us
+      touchpad {
+        natural_scroll = true   # 反向滚动
+        }
+        }
   #+end_src
 
 * 快捷键设置
@@ -97,15 +97,15 @@
   #+end_src
 
 * 窗口美化
-  #+begin_src ini
+  #+begin_src json
     decoration {
-    active_opacity = 0.9
-    inactive_opacity = 0.8
-    blur = yes
-    blur_size = 5
-    blur_passes = 3
-    blur_new_optimizations = on
-    rounding = 8
+      active_opacity = 0.9
+      inactive_opacity = 0.8
+      blur = yes
+      blur_size = 5
+      blur_passes = 3
+      blur_new_optimizations = on
+      rounding = 8
     }
   #+end_src
 
@@ -128,31 +128,31 @@
 
 * Waybar 配置
   路径：~/.config/waybar/config
-  #+begin_src ini
+  #+begin_src json
     {
-    "layer": "top",
-    "modules-left": ["workspaces"],
-    "modules-center": ["clock"],
-    "modules-right": ["network", "pulseaudio", "custom/brightness", "battery"],
+      "layer": "top",
+      "modules-left": ["workspaces"],
+      "modules-center": ["clock"],
+      "modules-right": ["network", "pulseaudio", "custom/brightness", "battery"],
 
-    "pulseaudio": {
-    "format": "{icon} {volume}%",
-    "format-muted": " mute",
-    "on-click": "pavucontrol"
-    },
-    "network": {
-    "format-wifi": " {essid} {signalStrength}%",
-    "format-ethernet": " {ipaddr}",
-    "format-disconnected": "",
-    "on-click": "nm-connection-editor"
-    },
-    "custom/brightness": {
-    "format": "☀ {output}",
-    "exec": "bash -c 'v=$(brightnessctl g); m=$(brightnessctl m); echo $((100*v/m))%';",
-    "interval": 5,
-    "on-scroll-up": "brightnessctl s +5%",
-    "on-scroll-down": "brightnessctl s 5%-"
-    }
+      "pulseaudio": {
+        "format": "{icon} {volume}%",
+        "format-muted": " mute",
+        "on-click": "pavucontrol"
+      },
+      "network": {
+        "format-wifi": " {essid} {signalStrength}%",
+        "format-ethernet": " {ipaddr}",
+        "format-disconnected": "",
+        "on-click": "nm-connection-editor"
+      },
+      "custom/brightness": {
+        "format": "☀ {output}",
+        "exec": "bash -c 'v=$(brightnessctl g); m=$(brightnessctl m); echo $((100*v/m))%';",
+        "interval": 5,
+        "on-scroll-up": "brightnessctl s +5%",
+        "on-scroll-down": "brightnessctl s 5%-"
+      }
     }
   #+end_src
 
