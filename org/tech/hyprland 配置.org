@@ -1,0 +1,185 @@
+#+hugo_base_dir: ../../
+#+hugo_section: tech
+#+STARTUP: content
+#+TITLE: hyprland 配置
+#+author: wang1zhen
+#+DATE: <2025-09-18 Thu>
+#+EXPORT_FILE_NAME: hyprland 配置
+#+description: 配置 Debian 上的 hyprland
+#+hugo_draft: false
+
+* 安装软件包
+  #+begin_src bash
+    sudo apt update
+    sudo apt install -y \
+         hyprland waybar \
+         kitty dolphin \
+         wofi firefox-esr spectacle \
+         pavucontrol blueman brightnessctl wl-clipboard \
+         hyprpaper swayidle
+  #+end_src
+
+* 检查显示器名称并写入配置
+  先运行：
+  #+begin_src bash
+    hyprctl monitors
+  #+end_src
+
+  示例输出：
+  #+begin_example
+  Monitor eDP-1 (ID 0): 1920x1080@60.000Hz
+  Monitor HDMI-A-1 (ID 1): 2560x1440@144.000Hz
+  #+end_example
+
+  配置文件写法（~/.config/hypr/hyprland.conf）：
+  #+begin_src ini
+    monitor=eDP-1,1920x1080@60,0x0,1
+    monitor=HDMI-A-1,2560x1440@144,1920x0,1
+  #+end_src
+
+* swayidle 用法
+  在配置中添加：
+  #+begin_src ini
+    exec-once = swayidle -w \
+    timeout 300 'hyprctl dispatch dpms off' \
+    resume 'hyprctl dispatch dpms on'
+  #+end_src
+
+  解释：
+  - ~-w~ ：阻塞运行，保证进程驻留
+  - ~timeout 300 'cmd'~ ：空闲 300 秒执行命令（这里是关闭屏幕）
+  - ~resume 'cmd'~ ：恢复活动后执行命令（这里是点亮屏幕）
+
+* 输入设备配置
+  #+begin_src ini
+    input {
+    kb_layout = us
+    touchpad {
+    natural_scroll = true   # 反向滚动
+    }
+    }
+  #+end_src
+
+* 快捷键设置
+  #+begin_src ini
+    # 基础
+    bind=SUPER,RETURN,exec,kitty
+    bind=SUPER,E,exec,dolphin
+    bind=SUPER,B,exec,firefox
+    bind=SUPER,D,exec,wofi --show drun
+
+    # 窗口管理
+    bind=SUPER,Q,killactive
+    bind=SUPER,F,fullscreen               # 真全屏
+    bind=SUPER,SHIFT,F,fullscreen,1       # maximized (伪全屏，保留UI)
+    bind=SUPER,SPACE,togglefloating
+    bind=SUPER,P,togglepseudo
+
+    # 浮动窗口操作（仅对浮动窗口有效）
+    bind=SUPER,arrowup,moveactive,0 -50
+    bind=SUPER,arrowdown,moveactive,0 50
+    bind=SUPERCTRL,arrowup,resizeactive,0 -50
+    bind=SUPERCTRL,arrowdown,resizeactive,0 50
+
+    # 截图（Spectacle）
+    bind=SUPER,SHIFT,S,exec,spectacle
+    bind=SHIFT,PRINT,exec,spectacle -f -o ~/Pictures   # 全屏保存
+    bind=CTRL,PRINT,exec,spectacle -c                  # 截图复制到剪贴板
+
+    # 音量
+    bind=XF86AudioRaiseVolume,exec,pactl set-sink-volume @DEFAULT_SINK@ +5%
+    bind=XF86AudioLowerVolume,exec,pactl set-sink-volume @DEFAULT_SINK@ -5%
+    bind=XF86AudioMute,exec,pactl set-sink-mute @DEFAULT_SINK@ toggle
+
+    # 亮度
+    bind=XF86MonBrightnessUp,exec,brightnessctl s +10%
+    bind=XF86MonBrightnessDown,exec,brightnessctl s 10%-
+  #+end_src
+
+* 窗口美化
+  #+begin_src ini
+    decoration {
+    active_opacity = 0.9
+    inactive_opacity = 0.8
+    blur = yes
+    blur_size = 5
+    blur_passes = 3
+    blur_new_optimizations = on
+    rounding = 8
+    }
+  #+end_src
+
+  说明：
+  - active_opacity / inactive_opacity → 窗口透明度
+  - blur → 背景高斯模糊
+  - rounding → 窗口圆角
+
+* Hyprpaper 壁纸配置
+  路径：~/.config/hypr/hyprpaper.conf
+  #+begin_src ini
+    preload = /usr/share/backgrounds/gnome/adwaita-day.jpg
+    wallpaper = eDP-1,/usr/share/backgrounds/gnome/adwaita-day.jpg
+    wallpaper = HDMI-A-1,/usr/share/backgrounds/gnome/adwaita-day.jpg
+  #+end_src
+
+  解释：
+  - preload → 提前加载图片到内存，加快壁纸切换
+  - wallpaper → 设置某个显示器的壁纸
+
+* Waybar 配置
+  路径：~/.config/waybar/config
+  #+begin_src ini
+    {
+    "layer": "top",
+    "modules-left": ["workspaces"],
+    "modules-center": ["clock"],
+    "modules-right": ["network", "pulseaudio", "custom/brightness", "battery"],
+
+    "pulseaudio": {
+    "format": "{icon} {volume}%",
+    "format-muted": " mute",
+    "on-click": "pavucontrol"
+    },
+    "network": {
+    "format-wifi": " {essid} {signalStrength}%",
+    "format-ethernet": " {ipaddr}",
+    "format-disconnected": "",
+    "on-click": "nm-connection-editor"
+    },
+    "custom/brightness": {
+    "format": "☀ {output}",
+    "exec": "bash -c 'v=$(brightnessctl g); m=$(brightnessctl m); echo $((100*v/m))%';",
+    "interval": 5,
+    "on-scroll-up": "brightnessctl s +5%",
+    "on-scroll-down": "brightnessctl s 5%-"
+    }
+    }
+  #+end_src
+
+  注意：
+  - Waybar 必须使用 Nerd Font 字体，例如 *UbuntuMono Nerd Font*，否则图标乱码。
+
+* Wofi 配置
+  路径：~/.config/wofi/config
+  #+begin_src ini
+    show=drun
+    width=40%
+    height=40%
+  #+end_src
+
+* Kitty 配置
+  Kitty 默认配置即可，无需额外修改。
+
+* 功能总结
+  - 显示器名称必须先用 ~hyprctl monitors~ 确认
+  - 背景：使用 hyprpaper，支持多屏
+  - 透明与模糊：在 decoration 中设置
+  - 窗口模式：
+    - togglefloating → 浮动
+    - togglepseudo → 伪平铺
+    - fullscreen → 真全屏（Firefox 会隐藏地址栏）
+    - fullscreen,1 → maximized（保留 UI）
+  - 输入：natural_scroll = true 反向滚动
+  - 多媒体：Waybar + pavucontrol + nm-applet + brightnessctl
+  - 截图：Spectacle（支持全屏保存 / 剪贴板 / 手动选择）
+  - 电源管理：swayidle 延时关屏（300 秒）
