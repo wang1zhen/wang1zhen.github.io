@@ -51,13 +51,13 @@
   - ~resume 'cmd'~ ：恢复活动后执行命令（这里是点亮屏幕）
 
 * 输入设备配置
-  #+begin_src json
+  #+begin_src conf
     input {
       kb_layout = us
       touchpad {
         natural_scroll = true   # 反向滚动
-        }
-        }
+      }
+    }
   #+end_src
 
 * 快捷键设置
@@ -97,7 +97,7 @@
   #+end_src
 
 * 窗口美化
-  #+begin_src json
+  #+begin_src conf
     decoration {
       active_opacity = 0.9
       inactive_opacity = 0.8
