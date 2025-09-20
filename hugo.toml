@@ -10,25 +10,25 @@ enableRobotsTXT = true
 
 [menu]
  [[menu.main]]
-    name = "技术/Tech"
-    pageRef = "/tech"
-    weight = 1
+   name = "技术/Tech"
+   pageRef = "/tech"
+   weight = 1
  [[menu.main]]
-    name = "学习/Learn"
-    pageRef = "/learn"
-    weight = 2
+   name = "学习/Learn"
+   pageRef = "/learn"
+   weight = 2
  [[menu.main]]
-    name = "关于/About"
-    pageRef = "/about"
-    weight = 10
+   name = "关于/About"
+   pageRef = "/about"
+   weight = 10
 
 [params.homeInfoParams]
 Title = "Stay Awhile and Listen.<br>英雄请留步，且听我一言。"
 Content = ""
 
 [[params.socialIcons]]
-name = "github"
-url = "https://github.com/wang1zhen/"
+  name = "github"
+  url = "https://github.com/wang1zhen/"
 
 [params]
   env = "production"
@@ -40,6 +40,10 @@ url = "https://github.com/wang1zhen/"
   showtoc = true
   tocopen = true
   mainSections = ["tech", "learn"]
+  # comments
+  comments = true
+  discussionTitle = "欢迎来到评论区"
+  discussionSubtitle = "感谢您的耐心阅读！来选个表情，或者留个评论吧！"
 
 [params.author]
   name  = "wang1zhen"
@@ -56,3 +60,17 @@ url = "https://github.com/wang1zhen/"
   favicon128x128 = "favicon-128.png"
   favicon256x256 = "favicon-256.png"
   apple_touch_icon = "favicon-256.png"
+
+[params.giscus]
+  repo = "wang1zhen/wang1zhen.github.io"
+  repoId = "R_kgDOMUiQhg"
+  category = "Announcements"
+  categoryId = "DIC_kwDOMUiQhs4CvqY2"
+  mapping = "pathname"
+  strict = 0
+  reactionsEnabled = 1
+  emitMetadata = 0
+  inputPosition = "top"
+  lightTheme = "light"
+  darkTheme = "dark"
+  lang = "zh-CN"

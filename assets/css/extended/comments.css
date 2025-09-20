@@ -1,0 +1,14 @@
+/* giscus 评论组件 */
+.comments-title {
+    margin-top: 2rem;
+    margin-bottom: 2rem;
+    display: block;
+    text-align: center;
+}
+
+.x-comments-title {
+    display: block;
+    font-size: 1.25em;
+    font-weight: 700;
+    padding: 1.5rem 0 .5rem;
+}

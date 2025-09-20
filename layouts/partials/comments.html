@@ -1,0 +1,42 @@
+{{- if or (.Params.comments) (.Site.Params.comments) -}}
+<div class="comments-title" id="tw-comment-title">
+  <p class="x-comments-title">{{- .Param "discussionTitle" }}</p>
+  <p style="font-size: 1rem">{{- .Param "discussionSubtitle" }} </p>
+</div>
+<section id="comments">
+  <script src="https://giscus.app/client.js"
+          data-repo="{{ .Site.Params.giscus.repo }}"
+          data-repo-id="{{ .Site.Params.giscus.repoID }}"
+          data-category="{{ .Site.Params.giscus.category }}"
+          data-category-id="{{ .Site.Params.giscus.categoryID }}"
+          data-mapping="{{ default "pathname" .Site.Params.giscus.mapping }}"
+          data-strict="{{ default "1" .Site.Params.giscus.strict }}"
+          data-reactions-enabled="{{ default "1" .Site.Params.giscus.reactionsEnabled }}"
+          data-emit-metadata="{{ default "0" .Site.Params.giscus.emitMetadata }}"
+          data-input-position="{{ default "bottom" .Site.Params.giscus.inputPosition }}"
+          data-theme="{{ default "preferred_color_scheme" .Site.Params.giscus.theme }}"
+          data-lang="{{ default "zh-CN" .Site.Params.giscus.lang }}"
+          crossorigin="anonymous" async>
+  </script>
+  <noscript>请启用 JavaScript 查看评论。</noscript>
+</section>
+<script>
+  function setGiscusTheme(t){
+      const f = document.querySelector('iframe.giscus-frame');
+      if (f) f.contentWindow.postMessage({ giscus: { setConfig: { theme: t } } }, 'https://giscus.app');
+  }
+
+  // 首次加载按当前模式设置
+  const isDark = document.body.classList.contains('dark') ||
+        window.matchMedia('(prefers-color-scheme: dark)').matches &&
+        localStorage.getItem('pref-theme') !== 'light';
+  setGiscusTheme(isDark ? 'dark' : 'light');
+
+  // 监听 PaperMod 的主题按钮
+  const btn = document.getElementById('theme-toggle');
+  if (btn) btn.addEventListener('click', () => {
+      const nowDark = document.body.classList.contains('dark');
+      setGiscusTheme(nowDark ? 'dark' : 'light');
+  });
+</script>
+{{- end -}}
