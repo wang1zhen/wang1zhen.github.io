@@ -266,15 +266,15 @@ zpool create -f \
 zfs create -o mountpoint=none zroot/ROOT
 
 # 创建系统根数据集
-zfs create -o mountpoint=/ -o canmount=noauto zroot/ROOT/root
+zfs create -o mountpoint=/ -o canmount=noauto -o compression=zstd -o recordsize=128K zroot/ROOT/root
 
 # 创建用户相关数据集
-zfs create -o mountpoint=/home zroot/home
+zfs create -o mountpoint=/home -o compression=zstd -o recordsize=128K zroot/home
 
 # 创建系统数据集
-zfs create -o mountpoint=/var zroot/var
-zfs create -o mountpoint=/var/log zroot/var/log
-zfs create -o mountpoint=/var/cache zroot/var/cache
+zfs create -o mountpoint=/var -o compression=zstd zroot/var
+zfs create -o mountpoint=/var/log -o compression=zstd zroot/var/log
+zfs create -o mountpoint=/var/cache -o compression=zstd zroot/var/cache
 
 # 创建游戏数据集 - 大文件优化
 zfs create \
@@ -302,6 +302,15 @@ zfs create \
     -o recordsize=64K \
     -o atime=off \
     zroot/containers-${user_arch}
+
+# 创建用户缓存数据集 - 缓存优化，性能导向
+zfs create \
+    -o mountpoint="/home/${user_arch}/.cache" \
+    -o compression=zstd \
+    -o recordsize=64K \
+    -o atime=off \
+    -o sync=disabled \
+    zroot/cache-${user_arch}
 # 创建临时文件数据集 - 性能优化
 zfs create \
     -o mountpoint=/tmp \
@@ -316,6 +325,8 @@ zfs create \
 # 创建SMB共享数据集 - 私有共享，性能优化（Samba 另行配置）
 zfs create \
     -o mountpoint=/share \
+    -o compression=zstd \
+    -o recordsize=1M \
     -o atime=off \
     zroot/share
 ```
@@ -328,22 +339,9 @@ zfs list -t filesystem
 ```
 
 
-### 优化ZFS设置 {#优化zfs设置}
+### 设置ZFS缓存文件 {#设置zfs缓存文件}
 
 ```sh
-# 设置压缩算法
-zfs set compression=zstd zroot/ROOT/root
-zfs set compression=zstd zroot/home
-zfs set compression=zstd zroot/var
-zfs set compression=zstd zroot/var/log
-zfs set compression=zstd zroot/var/cache
-zfs set compression=zstd zroot/share
-
-# 优化recordsize设置
-zfs set recordsize=128K zroot/ROOT/root
-zfs set recordsize=128K zroot/home
-zfs set recordsize=1M zroot/share
-
 # 设置缓存文件
 zpool set cachefile=/etc/zfs/zpool.cache zroot
 ```
@@ -590,6 +588,15 @@ EDITOR=vim visudo
 mkdir -p /games
 chown 1000:1000 /games
 chmod 755 /games
+```
+
+
+### 设置用户缓存目录权限 {#设置用户缓存目录权限}
+
+```sh
+# 设置用户缓存目录权限（请替换username为实际用户名）
+chown 1000:1000 "/home/username/.cache"
+chmod 755 "/home/username/.cache"
 ```
 
 
@@ -1104,7 +1111,8 @@ jobs:
     type: snap
     filesystems: {
       "zroot/ROOT/root": true,
-      "zroot/home<": true
+      "zroot/home<": true,
+      "zroot/cache-*": false
     }
     snapshotting:
       type: periodic
@@ -1121,7 +1129,8 @@ jobs:
     type: snap
     filesystems: {
       "zroot/ROOT/root": true,
-      "zroot/home<": true
+      "zroot/home<": true,
+      "zroot/cache-*": false
     }
     snapshotting:
       type: periodic
@@ -1138,7 +1147,8 @@ jobs:
     type: snap
     filesystems: {
       "zroot/ROOT/root": true,
-      "zroot/home<": true
+      "zroot/home<": true,
+      "zroot/cache-*": false
     }
     snapshotting:
       type: periodic
@@ -1155,7 +1165,8 @@ jobs:
     type: snap
     filesystems: {
       "zroot/ROOT/root": true,
-      "zroot/home<": true
+      "zroot/home<": true,
+      "zroot/cache-*": false
     }
     snapshotting:
       type: periodic

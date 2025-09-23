@@ -238,15 +238,15 @@ zpool create -f \
 zfs create -o mountpoint=none rpool/ROOT
 
 # 创建系统根数据集
-zfs create -o mountpoint=/ -o canmount=noauto rpool/ROOT/debian
+zfs create -o mountpoint=/ -o canmount=noauto -o compression=zstd -o recordsize=128K rpool/ROOT/debian
 
 # 创建用户相关数据集
-zfs create -o mountpoint=/home rpool/home
+zfs create -o mountpoint=/home -o compression=zstd -o recordsize=128K rpool/home
 
 # 创建系统数据集
-zfs create -o mountpoint=/var rpool/var
-zfs create -o mountpoint=/var/log rpool/var/log
-zfs create -o mountpoint=/var/cache rpool/var/cache
+zfs create -o mountpoint=/var -o compression=zstd rpool/var
+zfs create -o mountpoint=/var/log -o compression=zstd rpool/var/log
+zfs create -o mountpoint=/var/cache -o compression=zstd rpool/var/cache
 
 # 创建 Podman 数据集（rootful）- 小文件优化
 zfs create \
@@ -267,6 +267,15 @@ zfs create \
     -o atime=off \
     rpool/containers-${user_debian}
 
+# 创建用户缓存数据集 - 缓存优化，性能导向
+zfs create \
+    -o mountpoint="/home/${user_debian}/.cache" \
+    -o compression=zstd \
+    -o recordsize=64K \
+    -o atime=off \
+    -o sync=disabled \
+    rpool/cache-${user_debian}
+
 # 创建临时文件数据集 - 性能优化
 zfs create \
     -o mountpoint=/tmp \
@@ -282,6 +291,7 @@ zfs create \
 zfs create \
     -o mountpoint=/share \
     -o compression=zstd \
+    -o recordsize=1M \
     -o atime=off \
     rpool/share
 ```
@@ -295,20 +305,9 @@ zpool status
 ```
 
 
-### 优化ZFS设置 {#优化zfs设置}
+### 设置ZFS缓存文件 {#设置zfs缓存文件}
 
 ```sh
-# 设置压缩算法
-zfs set compression=zstd rpool/ROOT/debian
-zfs set compression=zstd rpool/home
-zfs set compression=zstd rpool/var
-zfs set compression=zstd rpool/var/log
-zfs set compression=zstd rpool/var/cache
-
-# 优化recordsize设置
-zfs set recordsize=128K rpool/ROOT/debian
-zfs set recordsize=128K rpool/home
-
 # 设置缓存文件
 zpool set cachefile=/etc/zfs/zpool.cache rpool
 ```
@@ -526,6 +525,15 @@ passwd root
 useradd -m -s /bin/bash username  # 请替换username为实际用户名
 passwd username
 usermod -aG sudo username
+```
+
+
+### 设置用户缓存目录权限 {#设置用户缓存目录权限}
+
+```sh
+# 设置用户缓存目录权限（请替换username为实际用户名）
+chown 1000:1000 "/home/username/.cache"
+chmod 755 "/home/username/.cache"
 ```
 
 
@@ -802,7 +810,8 @@ jobs:
     type: snap
     filesystems: {
       "rpool/ROOT/debian": true,
-      "rpool/home<": true
+      "rpool/home<": true,
+      "rpool/cache-*": false
     }
     snapshotting:
       type: periodic
@@ -819,7 +828,8 @@ jobs:
     type: snap
     filesystems: {
       "rpool/ROOT/debian": true,
-      "rpool/home<": true
+      "rpool/home<": true,
+      "rpool/cache-*": false
     }
     snapshotting:
       type: periodic
@@ -836,7 +846,8 @@ jobs:
     type: snap
     filesystems: {
       "rpool/ROOT/debian": true,
-      "rpool/home<": true
+      "rpool/home<": true,
+      "rpool/cache-*": false
     }
     snapshotting:
       type: periodic
@@ -853,7 +864,8 @@ jobs:
     type: snap
     filesystems: {
       "rpool/ROOT/debian": true,
-      "rpool/home<": true
+      "rpool/home<": true,
+      "rpool/cache-*": false
     }
     snapshotting:
       type: periodic
