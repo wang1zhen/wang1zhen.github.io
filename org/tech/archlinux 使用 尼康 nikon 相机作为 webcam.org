@@ -1,0 +1,51 @@
+#+hugo_base_dir: ../../
+#+hugo_section: tech
+#+STARTUP: content
+#+TITLE: archlinux 使用 尼康 nikon 相机作为 webcam
+#+author: wang1zhen
+#+DATE: <2025-09-23 Tue>
+#+EXPORT_FILE_NAME: archlinux 使用 尼康 nikon 相机作为 webcam
+#+description: 在 arch linux 下使用尼康相机来作为系统的 webcam，借助 obs-studio
+#+hugo_draft: false
+
+尼康官方仅提供 Windows / macOS 的 Nikon Webcam Utility。在 Linux 下无法直接使用，需要依赖第三方工具和虚拟视频设备。以下流程以 Arch Linux 为例。
+
+* 核心思路
+  1. 使用 mtplvcap 将相机 MTP 流转化为本地 HTTP 流媒体
+  2. 在 OBS Studio 中通过 Browser Source 捕获 HTTP 流
+  3. 借助 v4l2loopback 创建虚拟摄像头设备，供 Zoom/Teams 等软件使用
+
+* 步骤详解
+** 安装并运行 mtplvcap
+   #+begin_src bash
+     yay -S mtplvcap
+     mtplvcap -max-resolution
+   #+end_src
+
+   浏览器访问 http://localhost:42839/view
+   → 记录相机支持的最高分辨率
+
+** 安装 OBS Studio (带 Browser Source)
+   默认 obs-studio 无 Browser Source 插件，需安装 AUR 包：
+   #+begin_src bash
+     yay -S obs-studio-git
+   #+end_src
+
+   Flatpak 版本需额外安装 obs-websocket 和浏览器源插件。
+
+** 安装 v4l2loopback 模块
+   #+begin_src bash
+     yay -S v4l2loopback-dkms
+   #+end_src
+
+   在这一步完成后需要重启。
+
+** 在 OBS 中配置
+   1. 新增 Browser Source，地址填 http://localhost:42839/view
+   2. 分辨率选择步骤 1 中记录的最大值
+   3. 启动 “Start Virtual Camera”
+   4. 在 Zoom/Teams/Meet 中选择 “NikonCam”
+
+* 注意事项
+  - 延迟: mtplvcap 基于 MTP 协议，延迟通常 200–400 ms，不适合低延迟场景
+  - 音频: 不采集声音，需额外麦克风

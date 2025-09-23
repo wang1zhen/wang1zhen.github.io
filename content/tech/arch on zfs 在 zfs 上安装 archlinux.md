@@ -1111,8 +1111,7 @@ jobs:
     type: snap
     filesystems: {
       "zroot/ROOT/root": true,
-      "zroot/home<": true,
-      "zroot/cache-*": false
+      "zroot/home<": true
     }
     snapshotting:
       type: periodic
@@ -1129,8 +1128,7 @@ jobs:
     type: snap
     filesystems: {
       "zroot/ROOT/root": true,
-      "zroot/home<": true,
-      "zroot/cache-*": false
+      "zroot/home<": true
     }
     snapshotting:
       type: periodic
@@ -1147,8 +1145,7 @@ jobs:
     type: snap
     filesystems: {
       "zroot/ROOT/root": true,
-      "zroot/home<": true,
-      "zroot/cache-*": false
+      "zroot/home<": true
     }
     snapshotting:
       type: periodic
@@ -1165,8 +1162,7 @@ jobs:
     type: snap
     filesystems: {
       "zroot/ROOT/root": true,
-      "zroot/home<": true,
-      "zroot/cache-*": false
+      "zroot/home<": true
     }
     snapshotting:
       type: periodic
@@ -1183,6 +1179,9 @@ EOF
 # 启用并启动zrepl服务
 sudo systemctl enable zrepl
 sudo systemctl start zrepl
+
+# 注意：用户缓存数据集（zroot/cache-*）不包含在快照策略中
+# 这些数据集被设计为临时缓存，不需要快照保护
 ```
 
 
