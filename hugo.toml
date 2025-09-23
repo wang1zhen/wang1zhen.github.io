@@ -4,6 +4,11 @@ defaultContentLanguage = 'zh-cn'
 title = "wang1zhen's Homepage"
 theme = "PaperMod"
 enableRobotsTXT = true
+canonifyURLs = true
+rssLimit = 20
+
+[pagination]
+pagerSize = 10
 
 [markup.goldmark.renderer]
   unsafe = true
