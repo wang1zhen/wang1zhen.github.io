@@ -504,7 +504,7 @@ usermod -aG sudo $user_new
 ```
 
 
-### 创建并设置用户缓存和容器数据集 {#创建并设置用户缓存和容器数据集}
+### 创建用户缓存和容器数据集 {#创建用户缓存和容器数据集}
 
 ```sh
 # 创建用户缓存数据集 - 缓存优化，性能导向
@@ -523,12 +523,6 @@ zfs create \
     -o recordsize=64K \
     -o atime=off \
     rpool/containers-${user_new}
-
-# 设置用户目录权限
-chown 1000:1000 "/home/${user_new}/.cache"
-chmod 755 "/home/${user_new}/.cache"
-chown 1000:1000 "/home/${user_new}/.local/share/containers"
-chmod 755 "/home/${user_new}/.local/share/containers"
 ```
 
 
@@ -543,6 +537,20 @@ zfs mount -a
 
 # 重新进入chroot环境
 arch-chroot /mnt
+```
+
+
+### 设置用户目录权限 {#设置用户目录权限}
+
+```sh
+# 重新设置环境变量（请替换为实际用户名）
+user_new="YOUR_USERNAME"
+
+# 设置用户目录权限
+chown 1000:1000 "/home/${user_new}/.cache"
+chmod 755 "/home/${user_new}/.cache"
+chown 1000:1000 "/home/${user_new}/.local/share/containers"
+chmod 755 "/home/${user_new}/.local/share/containers"
 ```
 
 
@@ -1113,20 +1121,10 @@ sudo apt install -y systemd-zram-generator
 
 # 配置zram
 sudo tee /etc/systemd/zram-generator.conf << 'EOF'
-# zram配置文件
-
 [zram0]
-# zram设备大小（总内存的百分比或绝对值）
-# 建议设置为总内存的25-50%
 zram-size = ram * 0.25
-
-# 压缩算法（lz4, lzo, zstd）
 compression-algorithm = zstd
-
-# 交换优先级（高于磁盘交换）
 swap-priority = 100
-
-# 文件系统类型
 fs-type = swap
 EOF
 
