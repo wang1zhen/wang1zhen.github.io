@@ -67,8 +67,14 @@ timedatectl set-ntp true
 ### 启用SSH（可选） {#启用ssh-可选}
 
 ```sh
-# 设置root密码
-passwd
+# 切换到root用户
+sudo -i
+
+# 安装必要软件包
+apt install openssh-server vim
+
+# 设置用户密码
+passwd user
 
 # 启动SSH服务
 systemctl start ssh
@@ -79,14 +85,22 @@ ip a    # 查看IP地址
 ## 第三部分：磁盘分区 {#第三部分-磁盘分区}
 
 
+### 安装必要工具 {#安装必要工具}
+
+```sh
+apt install linux-headers-amd64 zfs-dkms arch-install-scripts gdisk
+```
+
+
 ### 识别目标磁盘 {#识别目标磁盘}
 
 ```sh
+ls /dev/disk/by-id
 lsblk
 fdisk -l
 ```
 
-以下示例假设两个目标磁盘为 `/dev/nvme0n1` 和 =/dev/nvme1n1=，请根据实际情况调整。
+以下示例假设目标磁盘为 =/dev/nvme0n1=，请根据实际情况调整。
 
 
 ### 设置磁盘变量 {#设置磁盘变量}
@@ -94,45 +108,28 @@ fdisk -l
 ```sh
 # 设置磁盘设备变量（使用by-id路径，请根据实际情况调整）
 DISK1=/dev/disk/by-id/nvme-SAMSUNG_SSD_980_1TB_S649NJ0R123456A
-DISK2=/dev/disk/by-id/nvme-SAMSUNG_SSD_980_1TB_S649NJ0R123456B
 
 echo "DISK1: $DISK1"
-echo "DISK2: $DISK2"
 ```
 
 
-### 创建GPT分区表（两块磁盘） {#创建gpt分区表-两块磁盘}
-
-\*\*第一块磁盘\*\*（包含启动分区）：
+### 创建GPT分区表 {#创建gpt分区表}
 
 ```sh
 # 清除现有分区表并创建新的GPT分区表
 sgdisk --zap-all $DISK1
 
 # 创建EFI系统分区 (1G)
-sgdisk -n 1:1M:+1G -t 1:EF00 -c 1:"EFI System Partition" $DISK1
+sgdisk -n 1:1M:+1G -t 1:EF00 $DISK1
 
 # 创建交换分区 (16G)
-sgdisk -n 2:0:+16G -t 2:8200 -c 2:"Linux swap" $DISK1
+sgdisk -n 2:0:+16G -t 2:8200 $DISK1
 
 # 创建ZFS根分区（剩余空间）
-sgdisk -n 3:0:0 -t 3:BF00 -c 3:"ZFS Root" $DISK1
+sgdisk -n 3:0:0 -t 3:BF00 $DISK1
 
 # 显示分区信息
 sgdisk -p $DISK1
-```
-
-\*\*第二块磁盘\*\*（仅ZFS存储）：
-
-```sh
-# 清除现有分区表并创建新的GPT分区表
-sgdisk --zap-all $DISK2
-
-# 创建ZFS根分区（全部空间）
-sgdisk -n 1:1M:0 -t 1:BF00 -c 1:"ZFS Root" $DISK2
-
-# 显示分区信息
-sgdisk -p $DISK2
 ```
 
 
@@ -153,10 +150,10 @@ swapon ${DISK1}-part2
 ### 查看磁盘ID {#查看磁盘id}
 
 ```sh
-ls -lh /dev/disk/by-id/ | grep -E "(nvme0n1|nvme1n1)"
+ls -lh /dev/disk/by-id/ | grep nvme0n1
 ```
 
-记录两块目标磁盘的by-id路径，用于ZFS RAIDZ0配置。
+记录目标磁盘的by-id路径，用于ZFS配置。
 
 
 ## 第四部分：安装ZFS支持 {#第四部分-安装zfs支持}
@@ -176,9 +173,13 @@ apt update
 ### 安装ZFS包 {#安装zfs包}
 
 ```sh
+# 修改sources.list添加contrib
+sed -i 's/main/main contrib/g' /etc/apt/sources.list
+apt update
+
 # 安装必要工具和依赖
 apt install -y linux-headers-$(uname -r) build-essential \
-    debootstrap arch-install-scripts gdisk
+    debootstrap
 
 # 安装ZFS相关包
 apt install -y zfsutils-linux zfs-dkms
@@ -194,7 +195,7 @@ lsmod | grep zfs
 ## 第五部分：ZFS配置 {#第五部分-zfs配置}
 
 
-### 创建ZFS存储池（RAID0条带） {#创建zfs存储池-raid0条带}
+### 创建ZFS存储池 {#创建zfs存储池}
 
 ```sh
 zpool create -f \
@@ -215,11 +216,8 @@ zpool create -f \
       -O recordsize=128K \
       -R /mnt \
       rpool \
-      ${DISK1}-part3 \
-      ${DISK2}-part1
+      ${DISK1}-part3
 ```
-
-\*\*重要警告\*\*：这是RAID0条带配置，提供2x容量和更好的性能，但\*\*没有冗余保护\*\*。任何一块磁盘故障都会导致整个池的数据丢失！
 
 注意：请替换磁盘ID为实际的by-id路径。
 
@@ -228,7 +226,6 @@ zpool create -f \
 -   =ashift=12=：针对4K扇区磁盘优化
 -   =autotrim=on=：自动启用TRIM（适用于SSD）
 -   =compression=zstd=：使用zstd压缩算法
--   条带配置：数据分布在两块磁盘上，提升读写性能
 
 
 ### 创建ZFS数据集 {#创建zfs数据集}
@@ -267,14 +264,6 @@ zfs create \
     -o atime=off \
     rpool/containers-${user_debian}
 
-# 创建用户缓存数据集 - 缓存优化，性能导向
-zfs create \
-    -o mountpoint="/home/${user_debian}/.cache" \
-    -o compression=zstd \
-    -o recordsize=64K \
-    -o atime=off \
-    -o sync=disabled \
-    rpool/cache-${user_debian}
 
 # 创建临时文件数据集 - 性能优化
 zfs create \
@@ -362,8 +351,8 @@ debootstrap --include=openssh-server,vim,curl,wget,locales \
 # 使用genfstab自动生成fstab（ZFS数据集会被自动处理）
 genfstab -U /mnt >> /mnt/etc/fstab
 
-# 检查生成的fstab
-cat /mnt/etc/fstab
+# 编辑fstab文件
+vim /mnt/etc/fstab
 
 # 注意：ZFS数据集（包括/tmp）不需要在fstab中配置，ZFS会自动管理
 ```
@@ -495,20 +484,14 @@ update-initramfs -c -k all
 ### 配置GRUB {#配置grub}
 
 ```sh
-# 配置GRUB
-cat > /etc/default/grub << EOF
-GRUB_DEFAULT=0
-GRUB_TIMEOUT=5
-GRUB_DISTRIBUTOR=\`( . /etc/os-release && echo \${NAME} )\`
-GRUB_CMDLINE_LINUX_DEFAULT="quiet"
-GRUB_CMDLINE_LINUX="root=ZFS=rpool/ROOT/debian"
-EOF
+# 使用sed配置GRUB
+sed -i 's/GRUB_CMDLINE_LINUX=""/GRUB_CMDLINE_LINUX="root=ZFS=rpool\/ROOT\/debian"/' /etc/default/grub
 
 # 生成GRUB配置
 update-grub
 
 # 安装GRUB到EFI分区（/boot就是EFI分区）
-grub-install --target=x86_64-efi --efi-directory=/boot --bootloader-id=debian
+grub-install --target=x86_64-efi --efi-directory=/boot --bootloader-id=Debian
 ```
 
 
@@ -522,18 +505,30 @@ passwd root
 ### 创建普通用户 {#创建普通用户}
 
 ```sh
-useradd -m -s /bin/bash username  # 请替换username为实际用户名
-passwd username
-usermod -aG sudo username
+# 设置环境变量（请替换为实际用户名）
+user_new="YOUR_USERNAME"
+
+useradd -m -s /bin/bash $user_new
+passwd $user_new
+usermod -aG sudo $user_new
 ```
 
 
-### 设置用户缓存目录权限 {#设置用户缓存目录权限}
+### 创建并设置用户缓存数据集 {#创建并设置用户缓存数据集}
 
 ```sh
-# 设置用户缓存目录权限（请替换username为实际用户名）
-chown 1000:1000 "/home/username/.cache"
-chmod 755 "/home/username/.cache"
+# 创建用户缓存数据集 - 缓存优化，性能导向
+zfs create \
+    -o mountpoint="/home/${user_new}/.cache" \
+    -o compression=zstd \
+    -o recordsize=64K \
+    -o atime=off \
+    -o sync=disabled \
+    rpool/cache-${user_new}
+
+# 设置用户缓存目录权限
+chown 1000:1000 "/home/${user_new}/.cache"
+chmod 755 "/home/${user_new}/.cache"
 ```
 
 
@@ -556,21 +551,21 @@ cat > /etc/samba/smb.conf << 'EOF'
     path = /share
     guest ok = no
     read only = no
-    valid users = username
+    valid users = ${user_new}
     comment = Private ZFS Share
     create mask = 0660
     directory mask = 0770
 EOF
 
-# 为用户设置SMB密码（请替换username为实际用户名）
-smbpasswd -a username
+# 为用户设置SMB密码
+smbpasswd -a ${user_new}
 
 # 验证Samba配置
 testparm -s
 
-# 启用SMB服务
+# 启用SMB服务（禁用nmbd）
 systemctl enable smbd
-systemctl enable nmbd
+systemctl disable nmbd
 
 echo "SMB共享配置完成：\\\\server\\share"
 ```
@@ -1182,26 +1177,18 @@ sudo zfs destroy rpool/ROOT/debian@manual-20240101
 ```
 
 
-### RAID0条带管理 {#raid0条带管理}
+### 磁盘健康监控 {#磁盘健康监控}
 
 ```sh
-# 查看条带状态
+# 查看存储池状态
 zpool status -v rpool
 
-# 查看条带性能统计
+# 查看性能统计
 zpool iostat -v rpool
 
-# 检查磁盘健康状态（RAID0中任何磁盘故障都是致命的）
+# 检查磁盘健康状态
 sudo smartctl -a $DISK1
-sudo smartctl -a $DISK2
 ```
-
-\*\*重要提醒\*\*：RAID0条带配置下：
-
--   任何一块磁盘故障都会导致整个池不可用
--   无法离线单个磁盘进行维护
--   磁盘故障时只能从备份恢复整个系统
--   建议定期备份重要数据到外部存储
 
 
 ### 性能监控 {#性能监控}
@@ -1256,7 +1243,7 @@ sudo smartctl -a /dev/sdb
 2.  安装ZFS支持：=apt update &amp;&amp; apt install -y zfsutils-linux=
 3.  导入ZFS池：=zpool import -R /mnt rpool=
 4.  挂载文件系统：=zfs mount rpool/ROOT/debian &amp;&amp; zfs mount -a=
-5.  挂载EFI分区：=mount /dev/disk/by-id/nvme-SAMSUNG_SSD_980_1TB_S649NJ0R123456A-part1 /mnt/boot=
+5.  挂载EFI分区：=mount ${DISK1}-part1 /mnt/boot=
 6.  进入chroot：=chroot /mnt=
 7.  执行修复操作
 
@@ -1270,11 +1257,10 @@ sudo zfs list            # 查看所有数据集
 sudo zpool scrub rpool   # 手动执行scrub
 sudo zpool trim rpool    # 手动执行trim
 
-# RAID0条带管理
-sudo zpool status -v rpool           # 查看详细条带状态
-zpool iostat -v rpool               # 查看条带性能统计
+# 磁盘健康监控
+sudo zpool status -v rpool           # 查看详细存储池状态
+zpool iostat -v rpool               # 查看性能统计
 sudo smartctl -a $DISK1             # 检查磁盘健康（关键！）
-sudo smartctl -a $DISK2             # 检查磁盘健康（关键！）
 
 # 定时器管理
 systemctl list-timers | grep zfs     # 查看ZFS定时器
@@ -1536,43 +1522,4 @@ lsmod | grep -E "(nouveau|nvidia|bbswitch)"
 
 # 检查电源管理
 sudo powertop
-```
-
-
-## 附录：Micron 2100 NVMe硬盘优化 {#附录-micron-2100-nvme硬盘优化}
-
-
-### 添加内核参数解决延迟问题 {#添加内核参数解决延迟问题}
-
-```sh
-# 针对Micron 2100 NVMe硬盘，可能需要禁用电源管理以避免延迟问题
-# 编辑GRUB配置文件
-sudo nano /etc/default/grub
-
-# 在GRUB_CMDLINE_LINUX行中添加参数：
-# GRUB_CMDLINE_LINUX="root=ZFS=rpool/ROOT/debian nvme_core.default_ps_max_latency_us=0"
-
-# 或者使用sed自动添加参数
-sudo sed -i 's|GRUB_CMDLINE_LINUX="root=ZFS=rpool/ROOT/debian"|GRUB_CMDLINE_LINUX="root=ZFS=rpool/ROOT/debian nvme_core.default_ps_max_latency_us=0"|' /etc/default/grub
-
-# 更新GRUB配置
-sudo update-grub
-
-# 重启系统使参数生效
-sudo reboot
-```
-
-
-### 验证内核参数生效 {#验证内核参数生效}
-
-```sh
-# 检查当前内核参数
-cat /proc/cmdline
-
-# 检查NVMe设备状态
-lspci | grep -i nvme
-nvme list
-
-# 检查NVMe电源管理状态
-cat /sys/module/nvme_core/parameters/default_ps_max_latency_us
 ```

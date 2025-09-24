@@ -152,7 +152,7 @@ echo "Live环境archzfs配置完成"
 ### 启用SSH {#启用ssh}
 
 ```sh
-passwd  # 设置root密码
+passwd root  # 设置root密码
 systemctl start sshd
 ip a    # 查看IP地址
 ```
@@ -164,6 +164,7 @@ ip a    # 查看IP地址
 ### 识别目标磁盘 {#识别目标磁盘}
 
 ```sh
+ls /dev/disk/by-id
 lsblk
 fdisk -l
 ```
@@ -303,14 +304,6 @@ zfs create \
     -o atime=off \
     zroot/containers-${user_arch}
 
-# 创建用户缓存数据集 - 缓存优化，性能导向
-zfs create \
-    -o mountpoint="/home/${user_arch}/.cache" \
-    -o compression=zstd \
-    -o recordsize=64K \
-    -o atime=off \
-    -o sync=disabled \
-    zroot/cache-${user_arch}
 # 创建临时文件数据集 - 性能优化
 zfs create \
     -o mountpoint=/tmp \
@@ -564,8 +557,11 @@ grub-mkconfig -o /boot/grub/grub.cfg
 ### 创建用户 {#创建用户}
 
 ```sh
-useradd -m -G wheel -s /bin/bash username
-passwd username
+# 设置环境变量（请替换为实际用户名）
+user_new="YOUR_USERNAME"
+
+useradd -m -G wheel -s /bin/bash $user_new
+passwd $user_new
 ```
 
 配置sudo权限：
@@ -591,12 +587,21 @@ chmod 755 /games
 ```
 
 
-### 设置用户缓存目录权限 {#设置用户缓存目录权限}
+### 创建并设置用户缓存数据集 {#创建并设置用户缓存数据集}
 
 ```sh
-# 设置用户缓存目录权限（请替换username为实际用户名）
-chown 1000:1000 "/home/username/.cache"
-chmod 755 "/home/username/.cache"
+# 创建用户缓存数据集 - 缓存优化，性能导向
+zfs create \
+    -o mountpoint="/home/${user_new}/.cache" \
+    -o compression=zstd \
+    -o recordsize=64K \
+    -o atime=off \
+    -o sync=disabled \
+    zroot/cache-${user_new}
+
+# 设置用户缓存目录权限
+chown 1000:1000 "/home/${user_new}/.cache"
+chmod 755 "/home/${user_new}/.cache"
 ```
 
 
@@ -619,14 +624,14 @@ cat > /etc/samba/smb.conf << 'EOF'
     path = /share
     guest ok = no
     read only = no
-    valid users = username
+    valid users = ${user_new}
     comment = Private ZFS Share
     create mask = 0660
     directory mask = 0770
 EOF
 
-# 为用户设置SMB密码（请替换username为实际用户名）
-smbpasswd -a username
+# 为用户设置SMB密码
+smbpasswd -a ${user_new}
 
 # 验证Samba配置
 testparm -s

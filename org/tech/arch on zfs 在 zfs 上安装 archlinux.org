@@ -130,7 +130,7 @@
 
 ** 启用SSH
    #+begin_src sh
-     passwd  # 设置root密码
+     passwd root  # 设置root密码
      systemctl start sshd
      ip a    # 查看IP地址
    #+end_src
@@ -138,6 +138,7 @@
 * 第三部分：磁盘分区
 ** 识别目标磁盘
    #+begin_src sh
+     ls /dev/disk/by-id
      lsblk
      fdisk -l
    #+end_src
@@ -264,14 +265,6 @@
          -o atime=off \
          zroot/containers-${user_arch}
 
-     # 创建用户缓存数据集 - 缓存优化，性能导向
-     zfs create \
-         -o mountpoint="/home/${user_arch}/.cache" \
-         -o compression=zstd \
-         -o recordsize=64K \
-         -o atime=off \
-         -o sync=disabled \
-         zroot/cache-${user_arch}
      # 创建临时文件数据集 - 性能优化
      zfs create \
          -o mountpoint=/tmp \
@@ -485,8 +478,11 @@
 
 ** 创建用户
    #+begin_src sh
-     useradd -m -G wheel -s /bin/bash username
-     passwd username
+     # 设置环境变量（请替换为实际用户名）
+     user_new="YOUR_USERNAME"
+
+     useradd -m -G wheel -s /bin/bash $user_new
+     passwd $user_new
    #+end_src
 
    配置sudo权限：
@@ -509,11 +505,20 @@
      chmod 755 /games
    #+end_src
 
-** 设置用户缓存目录权限
+** 创建并设置用户缓存数据集
    #+begin_src sh
-     # 设置用户缓存目录权限（请替换username为实际用户名）
-     chown 1000:1000 "/home/username/.cache"
-     chmod 755 "/home/username/.cache"
+     # 创建用户缓存数据集 - 缓存优化，性能导向
+     zfs create \
+         -o mountpoint="/home/${user_new}/.cache" \
+         -o compression=zstd \
+         -o recordsize=64K \
+         -o atime=off \
+         -o sync=disabled \
+         zroot/cache-${user_new}
+
+     # 设置用户缓存目录权限
+     chown 1000:1000 "/home/${user_new}/.cache"
+     chmod 755 "/home/${user_new}/.cache"
    #+end_src
 
 ** 配置SMB共享
@@ -534,14 +539,14 @@
          path = /share
          guest ok = no
          read only = no
-         valid users = username
+         valid users = ${user_new}
          comment = Private ZFS Share
          create mask = 0660
          directory mask = 0770
      EOF
 
-     # 为用户设置SMB密码（请替换username为实际用户名）
-     smbpasswd -a username
+     # 为用户设置SMB密码
+     smbpasswd -a ${user_new}
 
      # 验证Samba配置
      testparm -s
