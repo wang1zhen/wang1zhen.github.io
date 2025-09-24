@@ -293,16 +293,6 @@ zfs create \
     -o atime=off \
     zroot/containers
 
-# 创建 Podman 数据集（rootless，可选）
-# 设置变量：新系统的主要用户名（请替换为实际用户名）
-user_arch="YOUR_USERNAME"
-
-zfs create \
-    -o mountpoint="/home/${user_arch}/.local/share/containers" \
-    -o compression=zstd \
-    -o recordsize=64K \
-    -o atime=off \
-    zroot/containers-${user_arch}
 
 # 创建临时文件数据集 - 性能优化
 zfs create \
@@ -587,7 +577,7 @@ chmod 755 /games
 ```
 
 
-### 创建并设置用户缓存数据集 {#创建并设置用户缓存数据集}
+### 创建并设置用户缓存和容器数据集 {#创建并设置用户缓存和容器数据集}
 
 ```sh
 # 创建用户缓存数据集 - 缓存优化，性能导向
@@ -599,9 +589,33 @@ zfs create \
     -o sync=disabled \
     zroot/cache-${user_new}
 
-# 设置用户缓存目录权限
+# 创建 Podman 数据集（rootless）- 小文件优化
+zfs create \
+    -o mountpoint="/home/${user_new}/.local/share/containers" \
+    -o compression=zstd \
+    -o recordsize=64K \
+    -o atime=off \
+    zroot/containers-${user_new}
+
+# 设置用户目录权限
 chown 1000:1000 "/home/${user_new}/.cache"
 chmod 755 "/home/${user_new}/.cache"
+chown 1000:1000 "/home/${user_new}/.local/share/containers"
+chmod 755 "/home/${user_new}/.local/share/containers"
+```
+
+
+### 重新挂载数据集 {#重新挂载数据集}
+
+```sh
+# 退出chroot环境
+exit
+
+# 重新挂载所有ZFS数据集
+zfs mount -a
+
+# 重新进入chroot环境
+arch-chroot /mnt
 ```
 
 
