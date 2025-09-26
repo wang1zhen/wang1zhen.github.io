@@ -1,21 +1,21 @@
-<link href="https://fonts.font.im/css2?family=Noto+Serif&family=Noto+Serif+JP&family=Noto+Serif+SC&display=swap" rel="stylesheet">
+@import url('https://cdn.jsdelivr.net/npm/lxgw-wenkai-webfont@1.1.0/style.css');
 
 body {
-    font-family: 'Noto Serif', 'Noto Serif CJK JP', 'Noto Serif CJK SC', serif;
+    font-family: 'LXGW WenKai', 'Yu Mincho', serif;
 }
 
 h1, h2, h3, h4, h5, h6 {
-    font-family: 'Noto Serif', 'Noto Serif CJK JP', 'Noto Serif CJK SC', serif;
+    font-family: 'LXGW WenKai', 'Yu Mincho', serif;
 }
 
 main {
-    font-family: 'Noto Serif', 'Noto Serif CJK JP', 'Noto Serif CJK SC', serif;
+    font-family: 'LXGW WenKai', 'Yu Mincho', serif;
 }
 
 header {
-    font-family: 'Noto Serif', 'Noto Serif CJK JP', 'Noto Serif CJK SC', serif;
+    font-family: 'LXGW WenKai', 'Yu Mincho', serif;
 }
 
 footer {
-    font-family: 'Noto Serif', 'Noto Serif CJK JP', 'Noto Serif CJK SC', serif;
+    font-family: 'LXGW WenKai', 'Yu Mincho', serif;
 }
