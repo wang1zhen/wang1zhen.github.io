@@ -1,0 +1,113 @@
+#+hugo_base_dir: ../../
+#+hugo_section: tech
+#+STARTUP: content
+#+TITLE: zfs 备份
+#+author: wang1zhen
+#+DATE: <2025-09-26 Fri>
+#+EXPORT_FILE_NAME: zfs 备份
+#+description: 把 zfs 备份到本地的硬盘或是 ssh 远程服务器
+#+hugo_draft: false
+
+* 硬盘初始化
+  1. 确认设备
+     #+begin_src bash
+       lsblk
+     #+end_src
+
+  2. 清除旧分区表（可选）
+     #+begin_src bash
+       wipefs -a /dev/sdb
+     #+end_src
+
+  3. 使用 gdisk 分区
+     #+begin_src bash
+       gdisk /dev/sdb
+     #+end_src
+     - 输入 =o= → 新建空 GPT 表
+     - 输入 =n= → 新建分区（整盘）
+     - 类型代码：=BF00= (Solaris / ZFS)
+     - 输入 =w= → 写入
+     完成后得到 =/dev/sdb1=
+
+  4. 创建 ZFS 池
+     #+begin_src bash
+       zpool create -f backup /dev/sdb1
+     #+end_src
+
+  5. 优化设置
+     #+begin_src bash
+       zfs set mountpoint=/mnt/backup backup
+       zfs set compression=zstd backup
+     #+end_src
+
+  6. 卸载/挂载池
+     #+begin_src bash
+       zpool export backup        # 卸载
+       zpool import backup        # 重新挂载
+     #+end_src
+
+* 本地移动硬盘备份
+  1. 创建快照
+     #+begin_src bash
+       zfs snapshot zroot/home@2025-09-25
+     #+end_src
+
+  2. 直接传输到 ZFS 移动硬盘
+     #+begin_src bash
+       zfs send zroot/home@2025-09-25 | zfs recv -F backup/home
+     #+end_src
+
+  3. 增量备份
+     #+begin_src bash
+       zfs send -i zroot/home@2025-09-01 zroot/home@2025-09-25 | zfs recv -F backup/home
+     #+end_src
+
+  4. 存成文件（目标盘非 ZFS 时）
+     #+begin_src bash
+       zfs send zroot/home@2025-09-25 > /mnt/usb/zroot_home_20250925.zfs
+     #+end_src
+     恢复：
+     #+begin_src bash
+       zfs recv backup/home < /mnt/usb/zroot_home_20250925.zfs
+     #+end_src
+
+  5. 优化选项
+     - 压缩存档：
+       #+begin_src bash
+         zfs send zroot/home@2025-09-25 | gzip > /mnt/usb/home_20250925.zfs.gz
+       #+end_src
+     - 大文件传输稳定性（=mbuffer=）：
+       #+begin_src bash
+         zfs send zroot/home@2025-09-25 | mbuffer -s 128k -m 1G | zfs recv -F backup/home
+       #+end_src
+
+* 远程 SSH 备份
+  1. 完整快照传输
+     #+begin_src bash
+       zfs send zroot/home@2025-09-25 | ssh user@remote "zfs recv -F backup/home"
+     #+end_src
+
+  2. 增量快照传输
+     #+begin_src bash
+       zfs send -i zroot/home@2025-09-01 zroot/home@2025-09-25 | ssh user@remote "zfs recv -F backup/home"
+     #+end_src
+
+  3. 传输为文件
+     #+begin_src bash
+       zfs send zroot/home@2025-09-25 | ssh user@remote "cat > /mnt/usb/home_20250925.zfs"
+     #+end_src
+     恢复：
+     #+begin_src bash
+       ssh user@remote "cat /mnt/usb/home_20250925.zfs" | zfs recv -F backup/home
+     #+end_src
+
+  4. 稳定传输（推荐 mbuffer）
+     #+begin_src bash
+       zfs send zroot/home@2025-09-25 | mbuffer -s 128k -m 1G | ssh user@remote "mbuffer -s 128k -m 1G | zfs recv -F backup/home"
+     #+end_src
+
+* 注意事项
+  - *-f* 会覆盖设备上原有数据，谨慎使用
+  - 快照命名建议带日期，例如 =@2025-09-25=
+  - 远程备份建议设置 SSH 免密，方便脚本化
+
