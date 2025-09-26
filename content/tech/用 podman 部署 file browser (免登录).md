@@ -12,18 +12,18 @@ draft = false
 
 ```ini
 [Unit]
-Description=FileBrowser
+Description=<description>
 After=network-online.target
 
 [Container]
 Image=docker.io/filebrowser/filebrowser:latest
-ContainerName=filebrowser
+ContainerName=<name>
 UserNS=keep-id
-PublishPort=8080:8080
+PublishPort=<port>:8080
 Volume=/share/web:/srv:ro
 Volume=/share/filebrowser/database:/database
 Volume=/share/filebrowser/config:/config
-Exec=--noauth --port 8080
+Environment=FB_NOAUTH=true
 AutoUpdate=registry
 
 [Service]
@@ -35,6 +35,22 @@ WantedBy=default.target
 ```
 
 
+## settings.ini {#settings-dot-ini}
+
+`/config/settings.ini`
+
+```ini
+{
+  "port": 8080,
+  "baseURL": "",
+  "address": "",
+  "log": "stdout",
+  "database": "/database/filebrowser.db",
+  "root": "/srv"
+}
+```
+
+
 ## 配置要点 {#配置要点}
 
 -   UserNS=keep-id：容器使用当前用户 UID/GID，避免权限错乱
@@ -42,9 +58,9 @@ WantedBy=default.target
     -   /share/web:/srv:ro：网站根目录，只读
     -   /share/filebrowser/database:/database：数据库持久化
     -   /share/filebrowser/config:/config：配置持久化
--   Exec=--noauth --port 8080：关闭登录认证，直通访问
 -   Restart=always：异常退出自动重启
 -   AutoUpdate=registry：容器会根据镜像仓库版本自动更新
+-   **初次运行时必须确保 `/database` 是空的，否则 noauth 不生效！**
 
 
 ## 自动升级机制 {#自动升级机制}
