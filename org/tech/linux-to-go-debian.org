@@ -42,7 +42,8 @@
          dkms \
          git \
          wget \
-         curl
+         curl \
+         network-manager
 
      # 加载ZFS模块
      modprobe zfs
@@ -53,13 +54,26 @@
 
 ** 配置网络
    #+begin_src sh
+     # 启动NetworkManager
+     systemctl start NetworkManager
+
+     # 查看网络接口状态
+     nmcli device status
+
      # 有线网络通常自动配置
      ip a
 
      # 无线网络配置（如需要）
-     iwconfig
-     wpa_supplicant -B -i wlan0 -c <(wpa_passphrase "SSID" "password")
-     dhclient wlan0
+     # 扫描可用网络
+     nmcli device wifi list
+
+     # 连接到WiFi网络
+     # nmcli device wifi connect "SSID" password "password"
+
+     # 或者创建配置文件后连接
+     # nmcli connection add type wifi ifname wlan0 con-name "MyWiFi" ssid "SSID"
+     # nmcli connection modify "MyWiFi" wifi-sec.key-mgmt wpa-psk wifi-sec.psk "password"
+     # nmcli connection up "MyWiFi"
 
      # 设置时间同步
      timedatectl set-ntp true
@@ -129,7 +143,6 @@
      zpool create -f \
            -o ashift=12 \
            -o autotrim=on \
-           -o compatibility=openzfs-2.2-linux \
            -O acltype=posixacl \
            -O canmount=off \
            -O compression=zstd \
@@ -622,23 +635,3 @@
     sudo zfs send zroot/ROOT/debian@snap | sudo zfs receive zroot/ROOT/debian-new
     sudo zfs rollback zroot/ROOT/debian@snap  # 回滚到快照
   #+end_src
-
-* 安全注意事项
-** 数据保护
-   - 定期创建快照和备份
-   - 使用强密码保护ZFS加密
-   - 考虑使用密钥文件作为备用解锁方式
-   - 在安全环境中存储恢复信息
-
-** 物理安全
-   - USB设备易于丢失，确保加密强度
-   - 考虑使用带硬件加密的USB设备
-   - 定期检查设备完整性
-
-** 使用建议
-   - 不要在不受信任的机器上使用
-   - 使用后安全地移除设备
-   - 定期更新系统和安全补丁
-   - 监控ZFS池健康状态
-
-   这个Linux To Go系统提供了完整的便携式Debian环境，具有企业级的ZFS存储管理和安全加密，同时通过ZFS Boot Manager实现了灵活的启动管理。
