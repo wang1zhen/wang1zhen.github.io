@@ -206,9 +206,15 @@ zpool export zroot
 # 重新导入到/mnt
 zpool import -N -R /mnt zroot
 
-# 挂载数据集
+# 加载密钥并挂载数据集
+# 注意：对于加密的ZFS数据集，需要先加载密钥才能挂载
+zfs load-key zroot/ROOT/debian
 zfs mount zroot/ROOT/debian
 zfs mount zroot/home
+
+# 或者使用-l选项在挂载时自动加载密钥
+# zfs mount -l zroot/ROOT/debian
+# zfs mount zroot/home
 
 # 验证挂载
 mount | grep mnt
@@ -245,10 +251,10 @@ mount | grep mnt
 ### 使用debootstrap安装基础系统 {#使用debootstrap安装基础系统}
 
 ```sh
-# 安装基础系统
+# 安装基础系统（不包含zfsutils-linux，因为它在contrib仓库）
 debootstrap \
-    --include=openssh-server,vim,curl,wget,locales,zfsutils-linux \
-    bookworm /mnt http://deb.debian.org/debian/
+    --include=openssh-server,vim,curl,wget,locales \
+    trixie /mnt http://deb.debian.org/debian/
 
 # 使用arch-install-scripts生成fstab（仅包含EFI分区）
 genfstab -U /mnt >> /mnt/etc/fstab
@@ -317,17 +323,14 @@ echo 'LANG=en_US.UTF-8' > /etc/locale.conf
 ```sh
 # 配置APT源
 cat > /etc/apt/sources.list << 'EOF'
-deb http://deb.debian.org/debian bookworm main contrib non-free non-free-firmware
-deb-src http://deb.debian.org/debian bookworm main contrib non-free non-free-firmware
+deb http://deb.debian.org/debian trixie main contrib non-free non-free-firmware
+deb-src http://deb.debian.org/debian trixie main contrib non-free non-free-firmware
 
-deb http://deb.debian.org/debian-security bookworm-security main contrib non-free non-free-firmware
-deb-src http://deb.debian.org/debian-security bookworm-security main contrib non-free non-free-firmware
+deb http://deb.debian.org/debian-security trixie-security main contrib non-free non-free-firmware
+deb-src http://deb.debian.org/debian-security trixie-security main contrib non-free non-free-firmware
 
-deb http://deb.debian.org/debian bookworm-updates main contrib non-free non-free-firmware
-deb-src http://deb.debian.org/debian bookworm-updates main contrib non-free non-free-firmware
-
-deb http://deb.debian.org/debian bookworm-backports main contrib non-free non-free-firmware
-deb-src http://deb.debian.org/debian bookworm-backports main contrib non-free non-free-firmware
+deb http://deb.debian.org/debian trixie-updates main contrib non-free non-free-firmware
+deb-src http://deb.debian.org/debian trixie-updates main contrib non-free non-free-firmware
 EOF
 
 # 更新包列表
