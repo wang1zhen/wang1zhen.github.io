@@ -347,6 +347,28 @@ update-initramfs -c -k all
 ```
 
 
+## 安装桌面环境（可选） {#安装桌面环境-可选}
+
+
+### 安装 Xfce 桌面环境 {#安装-xfce-桌面环境}
+
+```bash
+apt install xfce4 xfce4-goodies lightdm
+```
+
+
+### 安装网络管理器 {#安装网络管理器}
+
+如果不安装完整桌面环境，至少安装 NetworkManager 以便管理网络连接：
+
+```bash
+apt install network-manager
+systemctl enable NetworkManager
+```
+
+> **注意：** 如果安装了桌面环境，NetworkManager 通常会自动安装。如果只需要命令行系统，可以只安装 NetworkManager 而不安装桌面环境。
+
+
 ## 安装和配置 ZFSBootMenu {#安装和配置-zfsbootmenu}
 
 
