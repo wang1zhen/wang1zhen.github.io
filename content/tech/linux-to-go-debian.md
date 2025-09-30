@@ -6,738 +6,434 @@ date = 2025-09-29T00:00:00+09:00
 draft = false
 +++
 
-## 第一部分：准备工作 {#第一部分-准备工作}
+## 配置 Live 环境 {#配置-live-环境}
 
 
-### 下载Debian Live镜像 {#下载debian-live镜像}
+### 切换到 root shell {#切换到-root-shell}
 
-```sh
-# 下载Debian Live镜像（推荐标准版本）
-wget https://cdimage.debian.org/debian-cd/current-live/amd64/iso-hybrid/debian-live-12.7.0-amd64-standard.iso
-
-# 验证校验和
-wget https://cdimage.debian.org/debian-cd/current-live/amd64/iso-hybrid/SHA256SUMS
-sha256sum -c SHA256SUMS --ignore-missing
+```shell
+sudo -i
 ```
 
 
-## 第二部分：启动环境准备 {#第二部分-启动环境准备}
+### 定义系统 ID {#定义系统-id}
+
+定义一个系统标识符，用作将要安装的文件系统的简短名称。
+
+```shell
+export ID=<id>
+```
 
 
-### 启动到Debian Live环境 {#启动到debian-live环境}
+### 配置和更新 APT {#配置和更新-apt}
 
-1.  制作Debian Live启动盘（使用另一个U盘）
-2.  从Live环境启动
-3.  切换到root用户：=sudo -i=
-
-
-### 安装必要工具 {#安装必要工具}
-
-```sh
-# 更新包列表
+```shell
+cat <<EOF > /etc/apt/sources.list
+deb http://deb.debian.org/debian/ trixie main non-free-firmware contrib
+deb-src http://deb.debian.org/debian/ trixie main non-free-firmware contrib
+EOF
 apt update
+```
 
-# 安装必要工具
-apt install -y \
-    debootstrap \
-    gdisk \
-    arch-install-scripts \
-    zfsutils-linux \
-    zfs-dkms \
-    linux-headers-$(uname -r) \
-    build-essential \
-    dkms \
-    git \
-    wget \
-    curl \
-    network-manager
+> **注意：** 将 `deb.debian.org` 替换为本地镜像源可能会获得更快的下载速度。如果要使用 HTTPS 传输，请确保已安装 `ca-certificates` 和 `apt-transport-https` 软件包，且您的镜像源具有有效证书；否则 apt 将拒绝使用该镜像源。
 
-# 加载ZFS模块
-modprobe zfs
 
-# 验证ZFS模块加载
-lsmod | grep zfs
+### 安装辅助工具 {#安装辅助工具}
+
+```shell
+apt install debootstrap gdisk dkms linux-headers-$(uname -r)
+apt install zfsutils-linux arch-install-scripts
 ```
 
 
-### 配置网络 {#配置网络}
+### 生成 `/etc/hostid` {#生成-etc-hostid}
 
-```sh
-# 启动NetworkManager
-systemctl start NetworkManager
-
-# 查看网络接口状态
-nmcli device status
-
-# 有线网络通常自动配置
-ip a
-
-# 无线网络配置（如需要）
-# 扫描可用网络
-nmcli device wifi list
-
-# 连接到WiFi网络
-# nmcli device wifi connect "SSID" password "password"
-
-# 或者创建配置文件后连接
-# nmcli connection add type wifi ifname wlan0 con-name "MyWiFi" ssid "SSID"
-# nmcli connection modify "MyWiFi" wifi-sec.key-mgmt wpa-psk wifi-sec.psk "password"
-# nmcli connection up "MyWiFi"
-
-# 设置时间同步
-timedatectl set-ntp true
+```shell
+zgenhostid -f
 ```
 
 
-## 第三部分：目标设备分区 {#第三部分-目标设备分区}
+## 定义磁盘变量 {#定义磁盘变量}
 
+为方便操作并减少出错可能性，设置环境变量来引用将在安装过程中配置的设备。
 
-### 识别目标USB设备 {#识别目标usb设备}
+建议使用 `/dev/disk/by-id/` 路径来引用磁盘，这样可以确保磁盘标识的持久性和唯一性。
 
-```sh
-# 列出所有块设备
-lsblk -f
+使用 `ls -l /dev/disk/by-id/` 查看可用的磁盘设备。
 
-# 查看设备详细信息
-fdisk -l
-
-# 通过by-id路径识别设备（推荐）
-ls -la /dev/disk/by-id/ | grep usb
+```shell
+# 查看可用磁盘
+ls -l /dev/disk/by-id/
 ```
 
-⚠️ \*\*警告\*\*：请确认目标设备，以下操作将完全擦除设备上的所有数据！
+对于许多用户来说，最方便的做法是将引导文件（即 ZFSBootMenu 及负责启动它的加载器）放在将要存储 ZFS 池的同一磁盘上。
 
 
-### 设置设备变量 {#设置设备变量}
+### 定义引导磁盘变量 {#定义引导磁盘变量}
 
-```sh
-# 设置目标设备（请根据实际情况修改）
-USB_DEVICE="/dev/disk/by-id/usb-YourUSBDevice"
-
-echo "目标设备: $USB_DEVICE"
-lsblk "$USB_DEVICE"
+```shell
+export BOOT_DISK="/dev/disk/by-id/<boot-disk-id>"
+export BOOT_PART="1"
+export BOOT_DEVICE="${BOOT_DISK}-part${BOOT_PART}"
 ```
 
 
-### 创建分区表 {#创建分区表}
+### 定义 ZFS 池磁盘变量 {#定义-zfs-池磁盘变量}
 
-```sh
-# 清除现有分区表
-wipefs -a "$USB_DEVICE"
-sgdisk --zap-all "$USB_DEVICE"
+```shell
+export POOL_DISK="/dev/disk/by-id/<pool-disk-id>"
+export POOL_PART="2"
+export POOL_DEVICE="${POOL_DISK}-part${POOL_PART}"
+```
 
-# 创建GPT分区表
-sgdisk --clear "$USB_DEVICE"
+> **注意：** 如果引导分区和 ZFS 池在同一磁盘上，~BOOT_DISK~ 和 `POOL_DISK` 应该相同。如果使用独立的引导设备，请将它们设置为不同的磁盘 ID，并相应调整 ~POOL_PART~。
 
-# 1. EFI系统分区 (512MB)
-sgdisk -n 1:1M:+512M -t 1:EF00 -c 1:"EFI System" "$USB_DEVICE"
 
-# 2. ZFS分区 (剩余空间) - 单池方案
-sgdisk -n 2:0:-10M -t 2:BF01 -c 2:"ZFS Pool" "$USB_DEVICE"
+## 磁盘准备 {#磁盘准备}
 
-# 显示分区信息
-sgdisk -p "$USB_DEVICE"
-partprobe "$USB_DEVICE"
+
+### 擦除分区 {#擦除分区}
+
+```bash
+zpool labelclear -f "$POOL_DISK"
+
+wipefs -a "$POOL_DISK"
+wipefs -a "$BOOT_DISK"
+
+sgdisk --zap-all "$POOL_DISK"
+sgdisk --zap-all "$BOOT_DISK"
 ```
 
 
-### 验证分区创建 {#验证分区创建}
+### 创建 EFI 引导分区 {#创建-efi-引导分区}
 
-```sh
-# 查看分区
-lsblk "$USB_DEVICE"
-
-# 设置分区变量
-EFI_PART="${USB_DEVICE}-part1"
-ZFS_PART="${USB_DEVICE}-part2"
-
-echo "EFI分区: $EFI_PART"
-echo "ZFS分区: $ZFS_PART"
+```bash
+sgdisk -n "${BOOT_PART}:1m:+512m" -t "${BOOT_PART}:ef00" "$BOOT_DISK"
 ```
 
 
-## 第四部分：ZFS池配置 {#第四部分-zfs池配置}
+### 创建 zpool 分区 {#创建-zpool-分区}
+
+```bash
+sgdisk -n "${POOL_PART}:0:-10m" -t "${POOL_PART}:bf00" "$POOL_DISK"
+```
 
 
-### 创建ZFS池（加密） {#创建zfs池-加密}
+## ZFS 池创建 {#zfs-池创建}
 
-```sh
-# 创建加密的ZFS池（单池方案）
-zpool create -f \
-      -o ashift=12 \
-      -o autotrim=on \
-      -O acltype=posixacl \
-      -O canmount=off \
+
+### 创建 zpool {#创建-zpool}
+
+```bash
+zpool create -f -o ashift=12 \
       -O compression=zstd \
-      -O dnodesize=auto \
-      -O normalization=formD \
-      -O relatime=on \
+      -O acltype=posixacl \
       -O xattr=sa \
+      -O relatime=on \
       -O encryption=aes-256-gcm \
       -O keylocation=prompt \
       -O keyformat=passphrase \
-      -O mountpoint=none \
-      -R /mnt \
-      zroot "$ZFS_PART"
+      -o autotrim=on \
+      -m none zroot "$POOL_DEVICE"
 ```
 
-系统会提示输入加密密码，请使用强密码并牢记。
+执行此命令后，系统会提示您输入加密密码。
+
+> **注意：** 主要选项说明：
+>
+> -   `compression=zstd` - 使用 zstd 压缩算法，提供更好的压缩率。
+> -   `encryption=aes-256-gcm` - 您可以根据需要调整算法，但这在现代 x86_64 硬件上可能是性能最好的。
+> -   `keylocation=prompt` - 设置为在需要时提示输入密码，而不是从文件读取。
+> -   `keyformat=passphrase` - 密钥格式为密码短语。您的密码短语必须是可以在键盘上输入的内容，因为您需要在启动时输入它来解锁池。
 
 
-### 创建ZFS数据集 {#创建zfs数据集}
+### 创建初始文件系统 {#创建初始文件系统}
 
-```sh
-# 根数据集结构
-zfs create -o canmount=off -o mountpoint=none zroot/ROOT
-zfs create -o mountpoint=/ -o canmount=noauto zroot/ROOT/debian
+```shell
+zfs create -o mountpoint=none zroot/ROOT
+zfs create -o mountpoint=/ -o canmount=noauto zroot/ROOT/${ID}
 zfs create -o mountpoint=/home zroot/home
 
-# 设置bootfs属性
-zpool set bootfs=zroot/ROOT/debian zroot
+zpool set bootfs=zroot/ROOT/${ID} zroot
 ```
 
+> **注意：** 重要的是在任何 `mountpoint=/` 的文件系统上设置属性 `canmount=noauto~（即在您创建的任何其他引导环境上）。如果没有此属性，操作系统将尝试自动挂载所有 ZFS 文件系统，当多个文件系统尝试挂载到 ~/` 时会失败；这将阻止系统启动。不需要自动挂载 `/` 因为根文件系统在引导过程中会被显式挂载。
+>
+> 还要注意，与许多 ZFS 属性不同，~canmount~ 不可继承。因此，在 `zroot/ROOT` 上设置 `canmount=noauto` 是不够的，因为您随后创建的任何引导环境都将默认为 ~canmount=on~。必须在您创建的每个引导环境上显式设置 ~canmount=noauto~。
 
-### 导出并重新导入ZFS池 {#导出并重新导入zfs池}
 
-```sh
-# 导出池
+### 导出，然后使用临时挂载点 `/mnt` 重新导入 {#导出-然后使用临时挂载点-mnt-重新导入}
+
+```shell
 zpool export zroot
-
-# 重新导入到/mnt
 zpool import -N -R /mnt zroot
+zfs load-key -L prompt zroot
+```
 
-# 加载密钥并挂载数据集
-# 注意：对于加密的ZFS数据集，需要先加载密钥才能挂载
-zfs load-key zroot/ROOT/debian
-zfs mount zroot/ROOT/debian
+```shell
+zfs mount zroot/ROOT/${ID}
 zfs mount zroot/home
-
-# 或者使用-l选项在挂载时自动加载密钥
-# zfs mount -l zroot/ROOT/debian
-# zfs mount zroot/home
-
-# 验证挂载
-mount | grep mnt
 ```
 
 
-## 第五部分：格式化和挂载 {#第五部分-格式化和挂载}
+### 验证所有内容是否正确挂载 {#验证所有内容是否正确挂载}
 
-
-### 格式化EFI分区 {#格式化efi分区}
-
-```sh
-# 格式化EFI分区
-mkfs.vfat -F32 -n EFI "$EFI_PART"
+```shell
+# mount | grep mnt
+zroot/ROOT/debian on /mnt type zfs (rw,relatime,xattr,posixacl)
+zroot/home on /mnt/home type zfs (rw,relatime,xattr,posixacl)
 ```
 
 
-### 挂载EFI分区 {#挂载efi分区}
+### 更新设备符号链接 {#更新设备符号链接}
 
-```sh
-# 创建EFI挂载点并挂载
-mkdir -p /mnt/boot/efi
-mount "$EFI_PART" /mnt/boot/efi
-
-# 验证挂载
-df -h | grep -E "(zfs|vfat)"
-mount | grep mnt
+```shell
+udevadm trigger
 ```
 
 
-## 第六部分：安装Debian系统 {#第六部分-安装debian系统}
+## 安装 Debian {#安装-debian}
 
-
-### 使用debootstrap安装基础系统 {#使用debootstrap安装基础系统}
-
-```sh
-# 安装基础系统（不包含zfsutils-linux，因为它在contrib仓库）
-debootstrap \
-    --include=openssh-server,vim,curl,wget,locales \
-    trixie /mnt http://deb.debian.org/debian/
-
-# 使用arch-install-scripts生成fstab（仅包含EFI分区）
-genfstab -U /mnt >> /mnt/etc/fstab
-
-# 编辑fstab，移除ZFS相关条目（ZFS自动管理挂载）
-# 只保留EFI分区条目，删除ZFS数据集条目
-sed -i '/zfs/d' /mnt/etc/fstab
-
-# 验证fstab内容
-cat /mnt/etc/fstab
+```bash
+debootstrap trixie /mnt
 ```
 
 
-### 配置系统挂载点 {#配置系统挂载点}
+### 将文件复制到新安装中 {#将文件复制到新安装中}
 
-```sh
-# 复制必要文件到新系统
-mkdir -p /mnt/etc/zfs
-cp /etc/zfs/zpool.cache /mnt/etc/zfs/
+```bash
 cp /etc/hostid /mnt/etc/hostid
-cp /etc/resolv.conf /mnt/etc/resolv.conf
+cp /etc/resolv.conf /mnt/etc/
 ```
 
 
-## 第七部分：系统配置 {#第七部分-系统配置}
+### 创建并挂载 EFI 分区 {#创建并挂载-efi-分区}
+
+```bash
+mkfs.vfat -F32 "$BOOT_DEVICE"
+mkdir -p /mnt/boot/efi
+mount "$BOOT_DEVICE" /mnt/boot/efi
+```
 
 
-### 进入chroot环境 {#进入chroot环境}
+### 生成 fstab {#生成-fstab}
 
-```sh
-# 使用arch-chroot自动处理虚拟文件系统挂载
+```bash
+genfstab -U /mnt >> /mnt/etc/fstab
+```
+
+
+### Chroot 进入新系统 {#chroot-进入新系统}
+
+```bash
 arch-chroot /mnt
 ```
 
 
-### 基本系统配置 {#基本系统配置}
+## Debian 基本配置 {#debian-基本配置}
 
-```sh
-# 设置主机名
-echo 'debian-ltg' > /etc/hostname
 
-# 配置hosts文件
-cat > /etc/hosts << 'EOF'
-127.0.0.1   localhost
-::1         localhost
-127.0.1.1   debian-ltg.localdomain debian-ltg
-EOF
+### 设置主机名 {#设置主机名}
 
-# 设置时区
-ln -sf /usr/share/zoneinfo/Asia/Tokyo /etc/localtime
-
-# 配置语言环境
-cat > /etc/locale.gen << 'EOF'
-en_US.UTF-8 UTF-8
-ja_JP.UTF-8 UTF-8
-zh_CN.UTF-8 UTF-8
-EOF
-
-locale-gen
-echo 'LANG=en_US.UTF-8' > /etc/locale.conf
+```bash
+echo 'YOURHOSTNAME' > /etc/hostname
+echo -e '127.0.1.1\tYOURHOSTNAME' >> /etc/hosts
 ```
 
 
-### 配置包管理器 {#配置包管理器}
+### 设置 root 密码 {#设置-root-密码}
 
-```sh
-# 配置APT源
-cat > /etc/apt/sources.list << 'EOF'
-deb http://deb.debian.org/debian trixie main contrib non-free non-free-firmware
-deb-src http://deb.debian.org/debian trixie main contrib non-free non-free-firmware
+```bash
+passwd
+```
 
-deb http://deb.debian.org/debian-security trixie-security main contrib non-free non-free-firmware
-deb-src http://deb.debian.org/debian-security trixie-security main contrib non-free non-free-firmware
 
-deb http://deb.debian.org/debian trixie-updates main contrib non-free non-free-firmware
-deb-src http://deb.debian.org/debian trixie-updates main contrib non-free non-free-firmware
+### 添加用户 {#添加用户}
+
+```bash
+useradd -m -G sudo -s /bin/bash <username>
+passwd <username>
+```
+
+> **注意：** 将 `<username>` 替换为您想要创建的用户名。~-G sudo~ 参数将用户添加到 sudo 组，使其能够使用管理员权限。
+
+
+### 配置 `apt` 源 {#配置-apt-源}
+
+```bash
+cat <<EOF > /etc/apt/sources.list
+deb http://deb.debian.org/debian/ trixie main non-free-firmware contrib
+deb-src http://deb.debian.org/debian/ trixie main non-free-firmware contrib
+
+deb http://deb.debian.org/debian-security trixie-security main non-free-firmware contrib
+deb-src http://deb.debian.org/debian-security/ trixie-security main non-free-firmware contrib
+
+# trixie-updates, to get updates before a point release is made;
+deb http://deb.debian.org/debian trixie-updates main non-free-firmware contrib
+deb-src http://deb.debian.org/debian trixie-updates main non-free-firmware contrib
 EOF
+```
 
-# 更新包列表
+
+### 更新仓库缓存 {#更新仓库缓存}
+
+```bash
 apt update
 ```
 
 
-### 安装必要软件包 {#安装必要软件包}
+### 安装额外的基础软件包 {#安装额外的基础软件包}
 
-```sh
-# 安装基本必要软件包
-apt install -y \
-    linux-image-amd64 \
-    linux-headers-amd64 \
-    zfsutils-linux \
-    zfs-dkms \
-    firmware-iwlwifi \
-    sof-firmware \
-    network-manager \
-    systemd-resolved \
-    efibootmgr
-
-# 安装通用微码（Linux To Go兼容性）
-apt install -y intel-microcode amd64-microcode
-
-# 安装XFCE轻量级桌面环境
-apt install -y task-xfce-desktop
+```bash
+apt install locales keyboard-configuration console-setup
 ```
 
 
-### 配置显卡驱动（通用兼容安装） {#配置显卡驱动-通用兼容安装}
+### 配置本地化 {#配置本地化}
 
-```sh
-# Linux To Go通用显卡驱动配置（最小化安装）
+编辑 `/etc/locale.gen` 取消注释需要的语言（至少包括 ~en_US.UTF-8~），然后生成 locale：
 
-# Intel集成显卡驱动（基本支持）
-apt install -y \
-    intel-media-va-driver \
-    i965-va-driver \
-    mesa-vulkan-drivers
+```bash
+locale-gen
+```
 
-# AMD显卡驱动（开源驱动）
-apt install -y \
-    firmware-amd-graphics \
-    libgl1-mesa-dri \
-    mesa-vulkan-drivers \
-    xserver-xorg-video-amdgpu
+设置系统默认语言：
 
-# NVIDIA显卡驱动（基本支持）
-apt install -y \
-    nvidia-driver \
-    nvidia-settings
-
-# 通用显卡工具
-apt install -y \
-    vainfo \
-    mesa-utils
+```bash
+echo "LANG=en_US.UTF-8" > /etc/locale.conf
 ```
 
 
-### 配置ZFS {#配置zfs}
+### 配置时区 {#配置时区}
 
-```sh
-# hostid已在Live环境中生成并复制，这里检查是否存在
-if [ ! -f /etc/hostid ]; then
-    zgenhostid -f
-fi
+```bash
+ln -sf /usr/share/zoneinfo/<Region>/<City> /etc/localtime
+```
 
-# 启用ZFS服务
+
+### 配置键盘和控制台 {#配置键盘和控制台}
+
+```bash
+dpkg-reconfigure keyboard-configuration console-setup
+```
+
+
+## ZFS 配置 {#zfs-配置}
+
+
+### 安装必需的软件包 {#安装必需的软件包}
+
+```shell
+apt install linux-headers-amd64 linux-image-amd64 zfs-initramfs dosfstools
+echo "REMAKE_INITRD=yes" > /etc/dkms/zfs.conf
+```
+
+
+### 启用 systemd ZFS 服务 {#启用-systemd-zfs-服务}
+
+```shell
 systemctl enable zfs.target
 systemctl enable zfs-import-cache
 systemctl enable zfs-mount
 systemctl enable zfs-import.target
-
-# ZFS Boot Manager会自动处理启动参数
 ```
 
 
-### 配置initramfs {#配置initramfs}
+### 重建 initramfs {#重建-initramfs}
 
-```sh
-# 安装ZFS initramfs支持
-apt install -y zfs-initramfs dosfstools
-
-# 配置DKMS自动重建initramfs
-echo "REMAKE_INITRD=yes" > /etc/dkms/zfs.conf
-
-# 重建initramfs
+```shell
 update-initramfs -c -k all
 ```
 
 
-## 第八部分：安装ZFS Boot Manager {#第八部分-安装zfs-boot-manager}
+## 安装和配置 ZFSBootMenu {#安装和配置-zfsbootmenu}
 
 
-### 安装ZFS Boot Manager {#安装zfs-boot-manager}
+### 在数据集上设置 ZFSBootMenu 属性 {#在数据集上设置-zfsbootmenu-属性}
 
-```sh
-# 设置ZFSBootMenu属性（继承给所有子数据集）
+分配引导最终内核时使用的命令行参数。因为 ZFS 属性是可继承的，所以将通用属性分配给 `ROOT` 数据集，以便所有子数据集默认继承通用参数。
+
+```shell
 zfs set org.zfsbootmenu:commandline="quiet" zroot/ROOT
+```
 
-# EFI分区已在第五部分格式化，这里只需挂载
-# 获取EFI分区UUID（更可靠的方法）
-EFI_UUID=$(findmnt -n -o UUID /boot/efi)
-if [ -z "$EFI_UUID" ]; then
-    # 备用方法：查找第一个FAT32分区
-    EFI_UUID=$(blkid -t TYPE=vfat | head -1 | grep -o 'UUID="[^"]*"' | cut -d'"' -f2)
-fi
-cat << EOF >> /etc/fstab
-UUID=$EFI_UUID /boot/efi vfat defaults 0 0
-EOF
-mkdir -p /boot/efi
-mount /boot/efi
 
-# 安装curl并下载ZFSBootMenu
-apt install -y curl efibootmgr
+### 安装 ZFSBootMenu {#安装-zfsbootmenu}
+
+```bash
+apt install curl
+```
+
+获取预构建的 ZFSBootMenu EFI 可执行文件，并将其保存到 EFI 系统分区：
+
+```shell
 mkdir -p /boot/efi/EFI/ZBM
 curl -o /boot/efi/EFI/ZBM/VMLINUZ.EFI -L https://get.zfsbootmenu.org/efi
 cp /boot/efi/EFI/ZBM/VMLINUZ.EFI /boot/efi/EFI/ZBM/VMLINUZ-BACKUP.EFI
 ```
 
 
-### 配置UEFI启动项 {#配置uefi启动项}
+### 更新 ZFSBootMenu {#更新-zfsbootmenu}
 
-```sh
-# 挂载efivarfs（如果尚未挂载）
-mount -t efivarfs efivarfs /sys/firmware/efi/efivars
+当需要更新 ZFSBootMenu 到最新版本时，执行以下步骤：
 
-# 创建UEFI启动项（自动检测USB设备）
-USB_DEVICE=$(lsblk -no PKNAME /boot/efi | head -1)
-efibootmgr -c -d "/dev/$USB_DEVICE" -p 1 \
+```shell
+# 备份当前版本
+cp /boot/efi/EFI/ZBM/VMLINUZ.EFI /boot/efi/EFI/ZBM/VMLINUZ-BACKUP.EFI
+
+# 下载最新版本
+curl -o /boot/efi/EFI/ZBM/VMLINUZ.EFI -L https://get.zfsbootmenu.org/efi
+```
+
+> **注意：** 如果更新后出现问题，可以通过 EFI 引导菜单选择 "ZFSBootMenu (Backup)" 使用备份版本启动。
+
+
+### 配置 EFI 引导条目 {#配置-efi-引导条目}
+
+检查 efivarfs 是否已挂载，如未挂载则手动挂载：
+
+```shell
+mount | grep efivarfs || mount -t efivarfs efivarfs /sys/firmware/efi/efivars
+```
+
+安装 efibootmgr 并创建引导条目：
+
+```bash
+apt install efibootmgr
+```
+
+```bash
+efibootmgr -c -d "$BOOT_DISK" -p "$BOOT_PART" \
            -L "ZFSBootMenu (Backup)" \
            -l '\EFI\ZBM\VMLINUZ-BACKUP.EFI'
 
-efibootmgr -c -d "/dev/$USB_DEVICE" -p 1 \
+efibootmgr -c -d "$BOOT_DISK" -p "$BOOT_PART" \
            -L "ZFSBootMenu" \
            -l '\EFI\ZBM\VMLINUZ.EFI'
-
-# 查看启动项
-efibootmgr -v
 ```
 
-
-## 第九部分：用户和安全配置 {#第九部分-用户和安全配置}
-
-
-### 创建用户 {#创建用户}
-
-```sh
-# 设置root密码
-passwd root
-
-# 创建普通用户
-useradd -m -s /bin/bash -G sudo,netdev username
-passwd username
-
-# 配置sudo免密码
-echo 'username ALL=(ALL:ALL) NOPASSWD: ALL' > /etc/sudoers.d/username
-```
+> **注意：** 某些系统可能存在 EFI 引导条目问题。如果您重新启动后在 EFI 选择屏幕（通常在 POST 期间通过 F 键访问）中看不到上述条目，则可能需要使用众所周知的 EFI 文件名。有关此问题的帮助，请参阅 Portable EFI 文档。
+>
+> 有关配置 ZFSBootMenu 引导时行为的详细信息，请参阅 `zbm-kcl.8` 和 ~zfsbootmenu.7~。
 
 
-### 配置SSH {#配置ssh}
-
-```sh
-# 启用SSH服务
-systemctl enable ssh
-
-# 配置SSH安全设置
-sed -i 's/#PermitRootLogin yes/PermitRootLogin no/' /etc/ssh/sshd_config
-sed -i 's/#PasswordAuthentication yes/PasswordAuthentication yes/' /etc/ssh/sshd_config
-```
+## 准备首次启动 {#准备首次启动}
 
 
-### 配置网络 {#配置网络}
+### 退出 chroot，卸载所有内容 {#退出-chroot-卸载所有内容}
 
-```sh
-# 启用NetworkManager
-systemctl enable NetworkManager
-systemctl enable systemd-resolved
-```
-
-
-## 第十部分：系统优化 {#第十部分-系统优化}
-
-
-### 配置ZFS开机维护 {#配置zfs开机维护}
-
-```sh
-# 创建ZFS开机维护服务
-cat > /etc/systemd/system/zfs-boot-maintenance.service << 'EOF'
-[Unit]
-Description=ZFS Boot Maintenance (Trim and Scrub)
-Requires=zfs.target
-After=zfs.target multi-user.target
-ConditionACPower=true
-
-[Service]
-Type=oneshot
-Nice=19
-IOSchedulingClass=idle
-ExecStart=/bin/bash -c 'zpool trim zroot && zpool scrub zroot'
-TimeoutSec=3600
-
-[Install]
-WantedBy=multi-user.target
-EOF
-
-# 启用开机维护服务
-systemctl enable zfs-boot-maintenance.service
-```
-
-
-### 配置自动挂载 {#配置自动挂载}
-
-```sh
-# ZFS ARC内存限制（便携设备内存有限）
-echo 'options zfs zfs_arc_max=1073741824' > /etc/modprobe.d/zfs.conf
-```
-
-
-## 第十一部分：完成安装 {#第十一部分-完成安装}
-
-
-### 清理和退出 {#清理和退出}
-
-```sh
-# 退出chroot环境（arch-chroot会自动清理虚拟文件系统）
+```shell
 exit
+```
 
-# 卸载文件系统（正确顺序）
-umount /mnt/boot/efi
-zfs umount -a
+```shell
+umount -n -R /mnt
+```
 
-# 导出ZFS池
+
+### 导出 zpool 并重启 {#导出-zpool-并重启}
+
+```shell
 zpool export zroot
-```
-
-
-### 重启和测试 {#重启和测试}
-
-```sh
-# 重启系统
 reboot
-```
-
-
-## 第十二部分：使用指南 {#第十二部分-使用指南}
-
-
-### 首次启动 {#首次启动}
-
-1.  在目标机器上插入USB设备
-2.  进入UEFI设置，选择从USB启动
-3.  选择"ZFS Boot Menu"启动项
-4.  在ZBM界面中选择要启动的内核
-5.  输入ZFS加密密码
-
-
-### ZFS Boot Manager使用 {#zfs-boot-manager使用}
-
-ZFS Boot Manager提供以下功能：
-
--   自动检测ZFS环境
--   内核选择和启动
--   快照浏览和回滚
--   紧急恢复shell
-
-
-### 密码管理 {#密码管理}
-
-```sh
-# 更改ZFS加密密码
-sudo zfs change-key rpool
-
-# 添加新的密钥文件
-sudo zfs set keylocation=file:///path/to/keyfile rpool
-```
-
-
-### 快照管理 {#快照管理}
-
-```sh
-# 手动快照脚本（创建 /usr/local/bin/zfs-snapshot）
-cat > /usr/local/bin/zfs-snapshot << 'EOF'
-#!/bin/bash
-# ZFS 手动快照脚本
-
-TIMESTAMP=$(date +%Y%m%d-%H%M%S)
-SNAPSHOT_NAME="manual-$TIMESTAMP"
-
-echo "ZFS 快照创建工具"
-echo "==================="
-
-# 创建主要数据集快照
-echo "创建系统数据集快照..."
-zfs snapshot zroot/ROOT/debian@$SNAPSHOT_NAME
-zfs snapshot zroot/home@$SNAPSHOT_NAME
-
-# 列出刚创建的快照
-echo "已创建的快照："
-zfs list -t snapshot | grep $SNAPSHOT_NAME
-
-echo "快照创建完成：$SNAPSHOT_NAME"
-EOF
-
-chmod +x /usr/local/bin/zfs-snapshot
-
-# 基本快照操作
-# 创建快照：
-sudo zfs-snapshot
-
-# 列出所有快照：
-zfs list -t snapshot
-
-# 回滚到快照：
-sudo zfs rollback rpool/ROOT/debian@snapshot-name
-```
-
-
-## 第十三部分：维护和故障排除 {#第十三部分-维护和故障排除}
-
-
-### 系统更新 {#系统更新}
-
-```sh
-# 创建更新前快照
-sudo zfs snapshot rpool/ROOT/debian@pre-update-$(date +%Y%m%d)
-
-# 更新系统
-sudo apt update && sudo apt upgrade
-
-# 更新ZBM
-sudo generate-zbm
-```
-
-
-### 故障排除 {#故障排除}
-
-**问题1：无法启动，提示找不到ZFS池**
-
-解决方案：
-
-1.  在ZBM界面按'c'进入命令行
-2.  执行：=zpool import -f zroot=
-3.  输入密码解锁加密池
-4.  继续启动
-
-**问题2：ZFS密码忘记**
-
-解决方案：
-
-1.  如果有密钥文件备份，使用密钥文件解锁
-2.  如果有未加密的快照，可以从快照恢复
-3.  最坏情况需要重新安装系统
-
-**问题3：USB设备在不同机器上的兼容性**
-
-解决方案：
-
-```sh
-# 重新生成initramfs以包含更多驱动
-sudo update-initramfs -u
-```
-
-
-### 备份策略 {#备份策略}
-
-```sh
-# 创建完整系统快照
-sudo zfs snapshot -r zroot@full-backup-$(date +%Y%m%d)
-
-# 发送快照到外部存储
-sudo zfs send zroot/ROOT/debian@backup | gzip > /path/to/backup.gz
-
-# 恢复快照
-gunzip -c /path/to/backup.gz | sudo zfs receive zroot/ROOT/debian-restore
-```
-
-
-## 常用命令速查 {#常用命令速查}
-
-```sh
-# ZFS管理
-sudo zpool status               # 查看池状态
-sudo zfs list                   # 查看数据集
-sudo zpool scrub zroot          # 手动scrub
-sudo zfs snapshot zroot/ROOT/debian@manual-$(date +%Y%m%d)  # 创建快照
-
-# ZFS加密管理
-sudo zfs load-key zroot         # 手动加载密钥
-sudo zfs change-key zroot       # 更改加密密码
-sudo zfs unload-key zroot       # 卸载密钥
-
-# UEFI启动管理
-sudo efibootmgr -v              # 查看UEFI启动项
-
-# 系统维护
-sudo apt update && sudo apt upgrade    # 系统更新
-sudo update-initramfs -u               # 更新initramfs
-sudo zfs-snapshot                     # 创建系统快照
-
-# 故障排除
-sudo zpool import -f zroot      # 强制导入池
-sudo zfs mount -a               # 挂载所有数据集
-sudo systemctl status zfs.target  # 检查ZFS服务状态
-
-# 备份恢复
-sudo zfs send zroot/ROOT/debian@snap | sudo zfs receive zroot/ROOT/debian-new
-sudo zfs rollback zroot/ROOT/debian@snap  # 回滚到快照
 ```
