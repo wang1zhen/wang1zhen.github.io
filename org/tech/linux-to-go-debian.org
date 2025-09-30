@@ -35,7 +35,7 @@
    #+END_SRC
 
    #+BEGIN_QUOTE
-   *注意：* 将 ~deb.debian.org~ 替换为本地镜像源可能会获得更快的下载速度。如果要使用 HTTPS 传输，请确保已安装 ~ca-certificates~ 和 ~apt-transport-https~ 软件包，且您的镜像源具有有效证书；否则 apt 将拒绝使用该镜像源。
+   *注意：* 将 =deb.debian.org= 替换为本地镜像源可能会获得更快的下载速度。如果要使用 HTTPS 传输，请确保已安装 =ca-certificates= 和 =apt-transport-https= 软件包，且您的镜像源具有有效证书；否则 apt 将拒绝使用该镜像源。
    #+END_QUOTE
 
 ** 安装辅助工具
@@ -45,7 +45,7 @@
      apt install zfsutils-linux arch-install-scripts
    #+END_SRC
 
-** 生成 ~/etc/hostid~
+** 生成 =/etc/hostid=
 
    #+BEGIN_SRC shell
      zgenhostid -f
@@ -55,9 +55,9 @@
 
   为方便操作并减少出错可能性，设置环境变量来引用将在安装过程中配置的设备。
 
-  建议使用 ~/dev/disk/by-id/~ 路径来引用磁盘，这样可以确保磁盘标识的持久性和唯一性。
+  建议使用 =/dev/disk/by-id/= 路径来引用磁盘，这样可以确保磁盘标识的持久性和唯一性。
 
-  使用 ~ls -l /dev/disk/by-id/~ 查看可用的磁盘设备。
+  使用 =ls -l /dev/disk/by-id/= 查看可用的磁盘设备。
 
   #+BEGIN_SRC shell
     # 查看可用磁盘
@@ -83,7 +83,7 @@
    #+END_SRC
 
    #+BEGIN_QUOTE
-   *注意：* 如果引导分区和 ZFS 池在同一磁盘上，~BOOT_DISK~ 和 ~POOL_DISK~ 应该相同。如果使用独立的引导设备，请将它们设置为不同的磁盘 ID，并相应调整 ~POOL_PART~。
+   *注意：* 如果引导分区和 ZFS 池在同一磁盘上，=BOOT_DISK= 和 =POOL_DISK= 应该相同。如果使用独立的引导设备，请将它们设置为不同的磁盘 ID，并相应调整 =POOL_PART=。
    #+END_QUOTE
 
 * 磁盘准备
@@ -134,10 +134,10 @@
    #+BEGIN_QUOTE
    *注意：* 主要选项说明：
 
-   - ~compression=zstd~ - 使用 zstd 压缩算法，提供更好的压缩率。
-   - ~encryption=aes-256-gcm~ - 您可以根据需要调整算法，但这在现代 x86_64 硬件上可能是性能最好的。
-   - ~keylocation=prompt~ - 设置为在需要时提示输入密码，而不是从文件读取。
-   - ~keyformat=passphrase~ - 密钥格式为密码短语。您的密码短语必须是可以在键盘上输入的内容，因为您需要在启动时输入它来解锁池。
+   - =compression=zstd= - 使用 zstd 压缩算法，提供更好的压缩率。
+   - =encryption=aes-256-gcm= - 您可以根据需要调整算法，但这在现代 x86_64 硬件上可能是性能最好的。
+   - =keylocation=prompt= - 设置为在需要时提示输入密码，而不是从文件读取。
+   - =keyformat=passphrase= - 密钥格式为密码短语。您的密码短语必须是可以在键盘上输入的内容，因为您需要在启动时输入它来解锁池。
    #+END_QUOTE
 
 ** 创建初始文件系统
@@ -151,12 +151,12 @@
    #+END_SRC
 
    #+BEGIN_QUOTE
-   *注意：* 重要的是在任何 ~mountpoint=/~ 的文件系统上设置属性 ~canmount=noauto~（即在您创建的任何其他引导环境上）。如果没有此属性，操作系统将尝试自动挂载所有 ZFS 文件系统，当多个文件系统尝试挂载到 ~/~ 时会失败；这将阻止系统启动。不需要自动挂载 ~/~ 因为根文件系统在引导过程中会被显式挂载。
+   *注意：* 重要的是在任何 =mountpoint=/= 的文件系统上设置属性 =canmount=noauto=（即在您创建的任何其他引导环境上）。如果没有此属性，操作系统将尝试自动挂载所有 ZFS 文件系统，当多个文件系统尝试挂载到 =/= 时会失败；这将阻止系统启动。不需要自动挂载 =/= 因为根文件系统在引导过程中会被显式挂载。
 
-   还要注意，与许多 ZFS 属性不同，~canmount~ 不可继承。因此，在 ~zroot/ROOT~ 上设置 ~canmount=noauto~ 是不够的，因为您随后创建的任何引导环境都将默认为 ~canmount=on~。必须在您创建的每个引导环境上显式设置 ~canmount=noauto~。
+   还要注意，与许多 ZFS 属性不同，=canmount= 不可继承。因此，在 =zroot/ROOT= 上设置 =canmount=noauto= 是不够的，因为您随后创建的任何引导环境都将默认为 =canmount=on=。必须在您创建的每个引导环境上显式设置 =canmount=noauto=。
    #+END_QUOTE
 
-** 导出，然后使用临时挂载点 ~/mnt~ 重新导入
+** 导出，然后使用临时挂载点 =/mnt= 重新导入
 
    #+BEGIN_SRC shell
      zpool export zroot
@@ -239,10 +239,10 @@
    #+END_SRC
 
    #+BEGIN_QUOTE
-   *注意：* 将 ~<username>~ 替换为您想要创建的用户名。~-G sudo~ 参数将用户添加到 sudo 组，使其能够使用管理员权限。
+   *注意：* 将 =<username>= 替换为您想要创建的用户名。=-G sudo= 参数将用户添加到 sudo 组，使其能够使用管理员权限。
    #+END_QUOTE
 
-** 配置 ~apt~ 源
+** 配置 =apt= 源
 
    #+BEGIN_SRC bash
      cat <<EOF > /etc/apt/sources.list
@@ -272,7 +272,7 @@
 
 ** 配置本地化
 
-   编辑 ~/etc/locale.gen~ 取消注释需要的语言（至少包括 ~en_US.UTF-8~），然后生成 locale：
+   编辑 =/etc/locale.gen= 取消注释需要的语言（至少包括 =en_US.UTF-8=），然后生成 locale：
 
    #+BEGIN_SRC bash
      locale-gen
@@ -302,6 +302,7 @@
 
    #+BEGIN_SRC shell
      apt install linux-headers-amd64 linux-image-amd64 zfs-initramfs dosfstools
+     apt install amd64-microcode intel-microcode
      echo "REMAKE_INITRD=yes" > /etc/dkms/zfs.conf
    #+END_SRC
 
@@ -324,7 +325,7 @@
 
 ** 在数据集上设置 ZFSBootMenu 属性
 
-   分配引导最终内核时使用的命令行参数。因为 ZFS 属性是可继承的，所以将通用属性分配给 ~ROOT~ 数据集，以便所有子数据集默认继承通用参数。
+   分配引导最终内核时使用的命令行参数。因为 ZFS 属性是可继承的，所以将通用属性分配给 =ROOT= 数据集，以便所有子数据集默认继承通用参数。
 
    #+BEGIN_SRC shell
      zfs set org.zfsbootmenu:commandline="quiet" zroot/ROOT
@@ -387,7 +388,7 @@
    #+BEGIN_QUOTE
    *注意：* 某些系统可能存在 EFI 引导条目问题。如果您重新启动后在 EFI 选择屏幕（通常在 POST 期间通过 F 键访问）中看不到上述条目，则可能需要使用众所周知的 EFI 文件名。有关此问题的帮助，请参阅 Portable EFI 文档。
 
-   有关配置 ZFSBootMenu 引导时行为的详细信息，请参阅 ~zbm-kcl.8~ 和 ~zfsbootmenu.7~。
+   有关配置 ZFSBootMenu 引导时行为的详细信息，请参阅 =zbm-kcl.8= 和 =zfsbootmenu.7=。
    #+END_QUOTE
 
 * 准备首次启动

@@ -86,7 +86,7 @@ export POOL_PART="2"
 export POOL_DEVICE="${POOL_DISK}-part${POOL_PART}"
 ```
 
-> **注意：** 如果引导分区和 ZFS 池在同一磁盘上，~BOOT_DISK~ 和 `POOL_DISK` 应该相同。如果使用独立的引导设备，请将它们设置为不同的磁盘 ID，并相应调整 ~POOL_PART~。
+> **注意：** 如果引导分区和 ZFS 池在同一磁盘上，=BOOT_DISK= 和 `POOL_DISK` 应该相同。如果使用独立的引导设备，请将它们设置为不同的磁盘 ID，并相应调整 =POOL_PART=。
 
 
 ## 磁盘准备 {#磁盘准备}
@@ -157,9 +157,9 @@ zfs create -o mountpoint=/home zroot/home
 zpool set bootfs=zroot/ROOT/${ID} zroot
 ```
 
-> **注意：** 重要的是在任何 `mountpoint=/` 的文件系统上设置属性 `canmount=noauto~（即在您创建的任何其他引导环境上）。如果没有此属性，操作系统将尝试自动挂载所有 ZFS 文件系统，当多个文件系统尝试挂载到 ~/` 时会失败；这将阻止系统启动。不需要自动挂载 `/` 因为根文件系统在引导过程中会被显式挂载。
+> **注意：** 重要的是在任何 `mountpoint=/` 的文件系统上设置属性 `canmount=noauto=（即在您创建的任何其他引导环境上）。如果没有此属性，操作系统将尝试自动挂载所有 ZFS 文件系统，当多个文件系统尝试挂载到 =/` 时会失败；这将阻止系统启动。不需要自动挂载 `/` 因为根文件系统在引导过程中会被显式挂载。
 >
-> 还要注意，与许多 ZFS 属性不同，~canmount~ 不可继承。因此，在 `zroot/ROOT` 上设置 `canmount=noauto` 是不够的，因为您随后创建的任何引导环境都将默认为 ~canmount=on~。必须在您创建的每个引导环境上显式设置 ~canmount=noauto~。
+> 还要注意，与许多 ZFS 属性不同，=canmount= 不可继承。因此，在 `zroot/ROOT` 上设置 `canmount=noauto` 是不够的，因为您随后创建的任何引导环境都将默认为 =canmount=on=。必须在您创建的每个引导环境上显式设置 =canmount=noauto=。
 
 
 ### 导出，然后使用临时挂载点 `/mnt` 重新导入 {#导出-然后使用临时挂载点-mnt-重新导入}
@@ -255,7 +255,7 @@ useradd -m -G sudo -s /bin/bash <username>
 passwd <username>
 ```
 
-> **注意：** 将 `<username>` 替换为您想要创建的用户名。~-G sudo~ 参数将用户添加到 sudo 组，使其能够使用管理员权限。
+> **注意：** 将 `<username>` 替换为您想要创建的用户名。=-G sudo= 参数将用户添加到 sudo 组，使其能够使用管理员权限。
 
 
 ### 配置 `apt` 源 {#配置-apt-源}
@@ -291,7 +291,7 @@ apt install locales keyboard-configuration console-setup
 
 ### 配置本地化 {#配置本地化}
 
-编辑 `/etc/locale.gen` 取消注释需要的语言（至少包括 ~en_US.UTF-8~），然后生成 locale：
+编辑 `/etc/locale.gen` 取消注释需要的语言（至少包括 =en_US.UTF-8=），然后生成 locale：
 
 ```bash
 locale-gen
@@ -325,6 +325,7 @@ dpkg-reconfigure keyboard-configuration console-setup
 
 ```shell
 apt install linux-headers-amd64 linux-image-amd64 zfs-initramfs dosfstools
+apt install amd64-microcode intel-microcode
 echo "REMAKE_INITRD=yes" > /etc/dkms/zfs.conf
 ```
 
@@ -414,7 +415,7 @@ efibootmgr -c -d "$BOOT_DISK" -p "$BOOT_PART" \
 
 > **注意：** 某些系统可能存在 EFI 引导条目问题。如果您重新启动后在 EFI 选择屏幕（通常在 POST 期间通过 F 键访问）中看不到上述条目，则可能需要使用众所周知的 EFI 文件名。有关此问题的帮助，请参阅 Portable EFI 文档。
 >
-> 有关配置 ZFSBootMenu 引导时行为的详细信息，请参阅 `zbm-kcl.8` 和 ~zfsbootmenu.7~。
+> 有关配置 ZFSBootMenu 引导时行为的详细信息，请参阅 `zbm-kcl.8` 和 =zfsbootmenu.7=。
 
 
 ## 准备首次启动 {#准备首次启动}
