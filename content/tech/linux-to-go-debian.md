@@ -6,6 +6,9 @@ date = 2025-09-29T00:00:00+09:00
 draft = false
 +++
 
+本指南用于将带 ZFS 加密的 Debian 系统安装到 USB 移动设备（如 U 盘、移动硬盘等），实现便携式 Linux 系统。
+
+
 ## 配置 Live 环境 {#配置-live-环境}
 
 
@@ -29,13 +32,16 @@ export ID=<id>
 
 ```shell
 cat <<EOF > /etc/apt/sources.list
-deb http://deb.debian.org/debian/ trixie main non-free-firmware contrib
-deb-src http://deb.debian.org/debian/ trixie main non-free-firmware contrib
+deb http://deb.debian.org/debian/ trixie main non-free-firmware contrib non-free
+deb-src http://deb.debian.org/debian/ trixie main non-free-firmware contrib non-free
 EOF
 apt update
 ```
 
-> **注意：** 将 `deb.debian.org` 替换为本地镜像源可能会获得更快的下载速度。如果要使用 HTTPS 传输，请确保已安装 `ca-certificates` 和 `apt-transport-https` 软件包，且您的镜像源具有有效证书；否则 apt 将拒绝使用该镜像源。
+> **注意：**
+>
+> -   已添加 `non-free` 源以支持 NVIDIA 驱动等专有软件
+> -   将 `deb.debian.org` 替换为本地镜像源可能会获得更快的下载速度
 
 
 ### 安装辅助工具 {#安装辅助工具}
@@ -57,22 +63,25 @@ zgenhostid -f
 
 为方便操作并减少出错可能性，设置环境变量来引用将在安装过程中配置的设备。
 
-建议使用 `/dev/disk/by-id/` 路径来引用磁盘，这样可以确保磁盘标识的持久性和唯一性。
+> **重要：** 对于 Linux To Go 系统，\*\*必须使用\*\* `/dev/disk/by-id/` 路径来引用磁盘。这样可以确保在不同机器上插入 USB 设备时，磁盘标识保持持久性和唯一性，避免因设备顺序变化导致的启动问题。
 
-使用 `ls -l /dev/disk/by-id/` 查看可用的磁盘设备。
+使用 `ls -l /dev/disk/by-id/` 查看可用的磁盘设备，选择您的 USB 设备。
 
 ```shell
 # 查看可用磁盘
 ls -l /dev/disk/by-id/
 ```
 
-对于许多用户来说，最方便的做法是将引导文件（即 ZFSBootMenu 及负责启动它的加载器）放在将要存储 ZFS 池的同一磁盘上。
+> **提示：** USB 设备通常包含 `usb` 字样，例如：
+>
+> -   `usb-SanDisk_Extreme_SSD_xxx`
+> -   `usb-Samsung_Portable_SSD_xxx`
 
 
 ### 定义引导磁盘变量 {#定义引导磁盘变量}
 
 ```shell
-export BOOT_DISK="/dev/disk/by-id/<boot-disk-id>"
+export BOOT_DISK="/dev/disk/by-id/<usb-device-id>"
 export BOOT_PART="1"
 export BOOT_DEVICE="${BOOT_DISK}-part${BOOT_PART}"
 ```
@@ -81,12 +90,12 @@ export BOOT_DEVICE="${BOOT_DISK}-part${BOOT_PART}"
 ### 定义 ZFS 池磁盘变量 {#定义-zfs-池磁盘变量}
 
 ```shell
-export POOL_DISK="/dev/disk/by-id/<pool-disk-id>"
+export POOL_DISK="/dev/disk/by-id/<usb-device-id>"
 export POOL_PART="2"
 export POOL_DEVICE="${POOL_DISK}-part${POOL_PART}"
 ```
 
-> **注意：** 如果引导分区和 ZFS 池在同一磁盘上，=BOOT_DISK= 和 `POOL_DISK` 应该相同。如果使用独立的引导设备，请将它们设置为不同的磁盘 ID，并相应调整 =POOL_PART=。
+> **注意：** 对于 Linux To Go，引导分区和 ZFS 池通常在同一个 USB 设备上，因此 `BOOT_DISK` 和 `POOL_DISK` 应该相同。
 
 
 ## 磁盘准备 {#磁盘准备}
@@ -141,10 +150,11 @@ zpool create -f -o ashift=12 \
 
 > **注意：** 主要选项说明：
 >
-> -   `compression=zstd` - 使用 zstd 压缩算法，提供更好的压缩率。
-> -   `encryption=aes-256-gcm` - 您可以根据需要调整算法，但这在现代 x86_64 硬件上可能是性能最好的。
-> -   `keylocation=prompt` - 设置为在需要时提示输入密码，而不是从文件读取。
-> -   `keyformat=passphrase` - 密钥格式为密码短语。您的密码短语必须是可以在键盘上输入的内容，因为您需要在启动时输入它来解锁池。
+> -   `compression=zstd` - 使用 zstd 压缩算法，提供更好的压缩率
+> -   `encryption=aes-256-gcm` - AES-256-GCM 加密算法
+> -   `keylocation=prompt` - 启动时提示输入密码
+> -   `keyformat=passphrase` - 密钥格式为密码短语
+> -   `autotrim=on` - 启用 TRIM，对 SSD 类型的 USB 设备有益
 
 
 ### 创建初始文件系统 {#创建初始文件系统}
@@ -262,15 +272,15 @@ passwd <username>
 
 ```bash
 cat <<EOF > /etc/apt/sources.list
-deb http://deb.debian.org/debian/ trixie main non-free-firmware contrib
-deb-src http://deb.debian.org/debian/ trixie main non-free-firmware contrib
+deb http://deb.debian.org/debian/ trixie main non-free-firmware contrib non-free
+deb-src http://deb.debian.org/debian/ trixie main non-free-firmware contrib non-free
 
-deb http://deb.debian.org/debian-security trixie-security main non-free-firmware contrib
-deb-src http://deb.debian.org/debian-security/ trixie-security main non-free-firmware contrib
+deb http://deb.debian.org/debian-security trixie-security main non-free-firmware contrib non-free
+deb-src http://deb.debian.org/debian-security/ trixie-security main non-free-firmware contrib non-free
 
 # trixie-updates, to get updates before a point release is made;
-deb http://deb.debian.org/debian trixie-updates main non-free-firmware contrib
-deb-src http://deb.debian.org/debian trixie-updates main non-free-firmware contrib
+deb http://deb.debian.org/debian trixie-updates main non-free-firmware contrib non-free
+deb-src http://deb.debian.org/debian trixie-updates main non-free-firmware contrib non-free
 EOF
 ```
 
@@ -310,6 +320,8 @@ echo "LANG=en_US.UTF-8" > /etc/locale.conf
 ln -sf /usr/share/zoneinfo/<Region>/<City> /etc/localtime
 ```
 
+> **提示：** 将 `<Region>/<City>` 替换为您的时区，例如 `Asia/Shanghai` 或 =America/New_York=。
+
 
 ### 配置键盘和控制台 {#配置键盘和控制台}
 
@@ -328,6 +340,34 @@ apt install linux-headers-amd64 linux-image-amd64 zfs-initramfs dosfstools
 apt install amd64-microcode intel-microcode
 echo "REMAKE_INITRD=yes" > /etc/dkms/zfs.conf
 ```
+
+
+### 安装硬件固件和驱动 {#安装硬件固件和驱动}
+
+为确保在不同机器上的兼容性，安装常见的硬件固件和驱动程序：
+
+```shell
+# 基础固件包
+apt install firmware-linux firmware-linux-nonfree firmware-misc-nonfree
+
+# Wi-Fi 和音频固件
+apt install firmware-iwlwifi firmware-realtek firmware-atheros
+apt install firmware-sof-signed
+
+# Intel 显卡驱动
+apt install intel-media-va-driver i965-va-driver mesa-vulkan-drivers
+
+# AMD 显卡驱动
+apt install firmware-amd-graphics mesa-vulkan-drivers libdrm-amdgpu1
+
+# NVIDIA 显卡驱动（可选，如果需要）
+apt install nvidia-driver firmware-nvidia-gsp
+```
+
+> **注意：**
+>
+> -   NVIDIA 驱动体积较大，如果不需要可以跳过
+> -   这些包确保系统在大多数硬件上都能正常工作
 
 
 ### 启用 systemd ZFS 服务 {#启用-systemd-zfs-服务}
@@ -396,6 +436,18 @@ cp /boot/efi/EFI/ZBM/VMLINUZ.EFI /boot/efi/EFI/ZBM/VMLINUZ-BACKUP.EFI
 ```
 
 
+### 配置 Portable EFI 启动 {#配置-portable-efi-启动}
+
+为确保 USB 设备在不同机器上都能启动，需要将 ZFSBootMenu 复制到标准 EFI 启动位置：
+
+```shell
+mkdir -p /boot/efi/EFI/BOOT
+cp /boot/efi/EFI/ZBM/VMLINUZ.EFI /boot/efi/EFI/BOOT/BOOTX64.EFI
+```
+
+> **重要：** 这一步对于 Linux To Go 至关重要。=/EFI/BOOT/BOOTX64.EFI= 是 UEFI 固件的默认启动路径，确保在任何支持 UEFI 的机器上都能识别和启动此 USB 设备，即使该机器的 NVRAM 中没有专门的启动条目。
+
+
 ### 更新 ZFSBootMenu {#更新-zfsbootmenu}
 
 当需要更新 ZFSBootMenu 到最新版本时，执行以下步骤：
@@ -406,20 +458,21 @@ cp /boot/efi/EFI/ZBM/VMLINUZ.EFI /boot/efi/EFI/ZBM/VMLINUZ-BACKUP.EFI
 
 # 下载最新版本
 curl -o /boot/efi/EFI/ZBM/VMLINUZ.EFI -L https://get.zfsbootmenu.org/efi
+
+# 更新 Portable EFI 启动文件
+cp /boot/efi/EFI/ZBM/VMLINUZ.EFI /boot/efi/EFI/BOOT/BOOTX64.EFI
 ```
 
-> **注意：** 如果更新后出现问题，可以通过 EFI 引导菜单选择 "ZFSBootMenu (Backup)" 使用备份版本启动。
+> **注意：** 更新后记得同时更新 `/EFI/BOOT/BOOTX64.EFI` 文件。
 
 
-### 配置 EFI 引导条目 {#配置-efi-引导条目}
+### 配置 EFI 引导条目（可选） {#配置-efi-引导条目-可选}
 
-检查 efivarfs 是否已挂载，如未挂载则手动挂载：
+对于支持的机器，可以创建专门的 EFI 启动条目以获得更好的启动体验：
 
 ```shell
 mount | grep efivarfs || mount -t efivarfs efivarfs /sys/firmware/efi/efivars
 ```
-
-安装 efibootmgr 并创建引导条目：
 
 ```bash
 apt install efibootmgr
@@ -435,9 +488,7 @@ efibootmgr -c -d "$BOOT_DISK" -p "$BOOT_PART" \
            -l '\EFI\ZBM\VMLINUZ.EFI'
 ```
 
-> **注意：** 某些系统可能存在 EFI 引导条目问题。如果您重新启动后在 EFI 选择屏幕（通常在 POST 期间通过 F 键访问）中看不到上述条目，则可能需要使用众所周知的 EFI 文件名。有关此问题的帮助，请参阅 Portable EFI 文档。
->
-> 有关配置 ZFSBootMenu 引导时行为的详细信息，请参阅 `zbm-kcl.8` 和 =zfsbootmenu.7=。
+> **注意：** 这一步是可选的。由于已配置 Portable EFI，即使不创建这些启动条目，系统也能在任何机器上启动。这些条目只会保存在当前机器的 NVRAM 中。
 
 
 ## 准备首次启动 {#准备首次启动}
@@ -459,4 +510,35 @@ umount -n -R /mnt
 ```shell
 zpool export zroot
 reboot
+```
+
+> **使用提示：**
+>
+> -   在其他机器上使用时，在 BIOS/UEFI 设置中选择从 USB 设备启动
+> -   首次在新机器上启动时，需要输入 ZFS 加密密码
+> -   某些机器可能需要在 BIOS 中禁用 Secure Boot
+
+
+## 跨机器使用注意事项 {#跨机器使用注意事项}
+
+
+### 网络配置 {#网络配置}
+
+在新机器上首次启动时，网络配置会自动适配。如果使用 NetworkManager，它会自动检测和配置可用的网络接口。
+
+
+### 显卡驱动 {#显卡驱动}
+
+系统已安装多种显卡驱动，大多数情况下会自动选择合适的驱动。如果遇到显示问题：
+
+-   Intel/AMD 集成显卡通常开箱即用
+-   NVIDIA 独立显卡需要确保已安装 `nvidia-driver`
+
+
+### 硬件时钟 {#硬件时钟}
+
+在不同机器间切换时，可能需要手动同步时间：
+
+```bash
+timedatectl set-ntp true
 ```
