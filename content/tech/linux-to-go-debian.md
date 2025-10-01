@@ -6,9 +6,6 @@ date = 2025-09-29T00:00:00+09:00
 draft = false
 +++
 
-本指南用于将带 ZFS 加密的 Debian 系统安装到 USB 移动设备（如 U 盘、移动硬盘等），实现便携式 Linux 系统。
-
-
 ## 配置 Live 环境 {#配置-live-环境}
 
 
@@ -24,7 +21,7 @@ sudo -i
 定义一个系统标识符，用作将要安装的文件系统的简短名称。
 
 ```shell
-export ID=<id>
+export ID=debian
 ```
 
 
@@ -143,7 +140,7 @@ zpool create -f -o ashift=12 \
       -O keylocation=prompt \
       -O keyformat=passphrase \
       -o autotrim=on \
-      -m none zroot "$POOL_DEVICE"
+      -m none zroot-ltg "$POOL_DEVICE"
 ```
 
 执行此命令后，系统会提示您输入加密密码。
@@ -160,29 +157,29 @@ zpool create -f -o ashift=12 \
 ### 创建初始文件系统 {#创建初始文件系统}
 
 ```shell
-zfs create -o mountpoint=none zroot/ROOT
-zfs create -o mountpoint=/ -o canmount=noauto zroot/ROOT/${ID}
-zfs create -o mountpoint=/home zroot/home
+zfs create -o mountpoint=none zroot-ltg/ROOT
+zfs create -o mountpoint=/ -o canmount=noauto zroot-ltg/ROOT/${ID}
+zfs create -o mountpoint=/home zroot-ltg/home
 
-zpool set bootfs=zroot/ROOT/${ID} zroot
+zpool set bootfs=zroot-ltg/ROOT/${ID} zroot-ltg
 ```
 
 > **注意：** 重要的是在任何 `mountpoint=/` 的文件系统上设置属性 `canmount=noauto=（即在您创建的任何其他引导环境上）。如果没有此属性，操作系统将尝试自动挂载所有 ZFS 文件系统，当多个文件系统尝试挂载到 =/` 时会失败；这将阻止系统启动。不需要自动挂载 `/` 因为根文件系统在引导过程中会被显式挂载。
 >
-> 还要注意，与许多 ZFS 属性不同，=canmount= 不可继承。因此，在 `zroot/ROOT` 上设置 `canmount=noauto` 是不够的，因为您随后创建的任何引导环境都将默认为 =canmount=on=。必须在您创建的每个引导环境上显式设置 =canmount=noauto=。
+> 还要注意，与许多 ZFS 属性不同，=canmount= 不可继承。因此，在 `zroot-ltg/ROOT` 上设置 `canmount=noauto` 是不够的，因为您随后创建的任何引导环境都将默认为 =canmount=on=。必须在您创建的每个引导环境上显式设置 =canmount=noauto=。
 
 
 ### 导出，然后使用临时挂载点 `/mnt` 重新导入 {#导出-然后使用临时挂载点-mnt-重新导入}
 
 ```shell
-zpool export zroot
-zpool import -N -R /mnt zroot
-zfs load-key -L prompt zroot
+zpool export zroot-ltg
+zpool import -N -R /mnt zroot-ltg
+zfs load-key -L prompt zroot-ltg
 ```
 
 ```shell
-zfs mount zroot/ROOT/${ID}
-zfs mount zroot/home
+zfs mount zroot-ltg/ROOT/${ID}
+zfs mount zroot-ltg/home
 ```
 
 
@@ -190,8 +187,8 @@ zfs mount zroot/home
 
 ```shell
 # mount | grep mnt
-zroot/ROOT/debian on /mnt type zfs (rw,relatime,xattr,posixacl)
-zroot/home on /mnt/home type zfs (rw,relatime,xattr,posixacl)
+zroot-ltg/ROOT/debian on /mnt type zfs (rw,relatime,xattr,posixacl)
+zroot-ltg/home on /mnt/home type zfs (rw,relatime,xattr,posixacl)
 ```
 
 
@@ -417,7 +414,7 @@ systemctl enable NetworkManager
 分配引导最终内核时使用的命令行参数。因为 ZFS 属性是可继承的，所以将通用属性分配给 `ROOT` 数据集，以便所有子数据集默认继承通用参数。
 
 ```shell
-zfs set org.zfsbootmenu:commandline="quiet" zroot/ROOT
+zfs set org.zfsbootmenu:commandline="quiet" zroot-ltg/ROOT
 ```
 
 
@@ -508,7 +505,7 @@ umount -n -R /mnt
 ### 导出 zpool 并重启 {#导出-zpool-并重启}
 
 ```shell
-zpool export zroot
+zpool export zroot-ltg
 reboot
 ```
 
