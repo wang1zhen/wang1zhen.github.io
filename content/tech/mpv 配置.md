@@ -1,0 +1,411 @@
++++
+title = "mpv 配置"
+author = ["wang1zhen"]
+description = "mpv 配置文件，以及插件和快捷键设置。"
+date = 2025-10-01T00:00:00+09:00
+draft = false
++++
+
+## 前言 {#前言}
+
+MPV 是一款强大而轻量的开源媒体播放器，支持高度自定义。
+
+当前配置主要优化了以下方面：
+
+-   使用 GPU 加速和 Anime4K 着色器提升画质
+-   自定义快捷键实现高效操作
+-   通过脚本扩展功能（现代化 OSC、播放列表管理、自动加载等）
+-   优化中日文字幕显示和双字幕支持
+
+
+## 核心配置文件 (mpv.conf) {#核心配置文件--mpv-dot-conf}
+
+`mpv.conf` 是 MPV 的主配置文件，位于 =~/.config/mpv/mpv.conf=。
+
+```cfg
+# ========== 画质设置 ==========
+profile=gpu-hq                      # 使用高画质预设
+vo=gpu-next                         # 使用新的GPU渲染器（mpv 0.36+）
+gpu-api=auto                        # 自动选择最佳GPU API
+dither-depth=auto                   # 自动抖动深度
+hwdec=auto-safe                     # 自动硬件解码（避免CUDA错误）
+video-sync=display-resample         # 视频同步模式
+interpolation                       # 启用帧插值（运动补偿）
+
+# ========== 播放控制 ==========
+keep-open=always                    # 每个文件播完后暂停
+save-position-on-quit=yes           # 退出时保存播放进度
+
+# ========== 音频/字幕 ==========
+audio-file-auto=fuzzy               # 自动加载外挂音轨
+audio-channels=stereo               # 双声道输出
+audio-normalize-downmix=yes         # 规范化降混
+volume=100                          # 默认音量
+
+sub-auto=fuzzy                      # 自动加载外挂字幕
+alang=ja,en,zh                      # 音轨语言优先级：日语>英语>中文
+slang=zh,en,ja                      # 字幕语言优先级：中文>英语>日语
+
+# 字幕样式
+sub-font='Noto Sans CJK SC'         # 中文字体
+sub-font-size=48
+sub-color='#FFFFFF'
+sub-border-size=3
+sub-border-color='#000000'
+sub-shadow-offset=1
+sub-shadow-color='#000000'
+
+# 次字幕配置（mpv 0.40+ 内置支持）
+# 注意：次字幕样式继承主字幕设置，只能调整位置
+secondary-sid=auto                 # 自动选择次字幕轨道
+secondary-sub-pos=95               # 位置（0-150，100=屏幕底部）
+secondary-sub-visibility=yes       # 默认显示次字幕
+
+# ========== 界面设置 ==========
+osc=no                              # 禁用默认OSC控制条
+osd-bar=no                          # 禁用OSD进度条
+border=no                           # 无窗口边框
+autofit-larger=80%x80%              # 窗口最大为屏幕80%
+volume-max=200                      # 最大音量200%
+
+# ========== Anime4K画质增强 ==========
+# Optimized shaders for higher-end GPU: Mode A+A (HQ)
+glsl-shaders="~~/shaders/Anime4K_Clamp_Highlights.glsl:~~/shaders/Anime4K_Restore_CNN_VL.glsl:~~/shaders/Anime4K_Upscale_CNN_x2_VL.glsl:~~/shaders/Anime4K_Restore_CNN_M.glsl:~~/shaders/Anime4K_AutoDownscalePre_x2.glsl:~~/shaders/Anime4K_AutoDownscalePre_x4.glsl:~~/shaders/Anime4K_Upscale_CNN_x2_M.glsl"
+```
+
+
+### 画质设置详解 {#画质设置详解}
+
+-   `profile=gpu-hq` : 启用 MPV 内置的高画质预设，包含多项优化选项
+-   `vo=gpu-next` : 使用新一代 GPU 渲染器，性能更好，支持更多特性
+-   `gpu-api=auto` : 自动选择 GPU API（Linux 通常选择 Vulkan 或 OpenGL）
+-   `hwdec=auto-safe` : 启用硬件解码，=auto-safe= 避免某些不稳定的解码器
+-   `video-sync=display-resample` : 视频同步到显示器刷新率，配合插值使用
+-   `interpolation` : 帧插值/运动补偿，让 24fps 视频在高刷屏上更流畅
+
+
+### 播放控制 {#播放控制}
+
+-   `keep-open=always` : 播放结束后暂停而不是关闭，方便查看最后一帧或重播
+-   `save-position-on-quit=yes` : 记住播放进度，下次打开同一文件时从上次位置继续
+
+
+### 音频和字幕配置 {#音频和字幕配置}
+
+-   `audio-file-auto=fuzzy` : 模糊匹配自动加载外挂音轨文件
+-   `sub-auto=fuzzy` : 模糊匹配自动加载外挂字幕文件
+-   `alang/slang` : 设置音轨和字幕的语言优先级，我优先日语音轨+中文字幕
+
+字幕样式使用 `Noto Sans CJK SC` 字体，确保中文显示美观，白色字体配黑色描边和阴影提升可读性。
+
+
+### 双字幕支持 {#双字幕支持}
+
+MPV 0.40+ 原生支持次字幕（secondary subtitle），我的配置：
+
+-   `secondary-sid=auto` : 自动选择次字幕轨道
+-   `secondary-sub-pos=95` : 次字幕显示在稍高位置（主字幕在100底部）
+-   通过 `j/k` 键可以快速切换主次字幕轨道
+
+
+### Anime4K 画质增强 {#anime4k-画质增强}
+
+我使用 Anime4K 着色器来提升动画画质。默认加载 `Mode A+A (HQ)` 模式，适合高端 GPU：
+
+-   `Anime4K_Clamp_Highlights` : 修复高光过曝
+-   `Anime4K_Restore_CNN_VL/M` : 两次 CNN 还原细节
+-   `Anime4K_Upscale_CNN_x2_VL/M` : 两次 CNN 2倍放大
+-   `Anime4K_AutoDownscalePre` : 自动降采样预处理
+
+配合快捷键（Ctrl+1~6）可以切换不同的 Anime4K 模式，Ctrl+0 清除着色器。
+
+
+## 快捷键配置 (input.conf) {#快捷键配置--input-dot-conf}
+
+`input.conf` 定义了所有自定义快捷键绑定。
+
+```cfg
+# ========== 鼠标操作 ==========
+MBTN_LEFT_DBL cycle pause           # 双击左键：暂停/播放
+MBTN_RIGHT    ignore                # 右键单击：禁用
+WHEEL_UP      add volume 2          # 滚轮上：音量+2
+WHEEL_DOWN    add volume -2         # 滚轮下：音量-2
+
+# ========== 方向键导航 ==========
+RIGHT      seek 5                   # 右键：快进5秒
+LEFT       seek -5                  # 左键：快退5秒
+UP         add volume 5             # 上键：音量+5
+DOWN       add volume -5            # 下键：音量-5
+Shift+RIGHT seek 60                 # Shift+右键：快进60秒
+Shift+LEFT  seek -60                # Shift+左键：快退60秒
+Ctrl+RIGHT  sub-seek 1              # Ctrl+右键：跳到下一个字幕
+Ctrl+LEFT   sub-seek -1             # Ctrl+左键：跳到上一个字幕
+
+# ========== 播放速度控制 ==========
+[  multiply speed 1/1.1             # [ 键：速度-10%
+]  multiply speed 1.1               # ] 键：速度+10%
+{  multiply speed 0.5               # { 键：速度减半
+}  multiply speed 2.0               # } 键：速度加倍
+BS set speed 1.0                    # 退格键：重置速度为1.0
+
+# ========== 截图控制 ==========
+s screenshot                       # s键：含字幕截图
+S screenshot video                 # Shift+s键：纯视频截图
+
+# ========== 窗口控制 ==========
+f cycle fullscreen                 # f键：切换全屏
+t cycle ontop                      # t键：切换窗口置顶
+
+# ========== 字幕控制 ==========
+j cycle sub                        # j键：切换主字幕轨道
+J cycle sub down                   # Shift+j：反向切换
+k cycle secondary-sid              # k键：切换次字幕轨道
+K cycle secondary-sid down         # Shift+k：反向切换
+
+# ========== ModernZ OSC控制 ==========
+TAB script-binding modernz/visibility  # Tab键：切换OSC显示模式
+
+# ========== Anime4K画质模式切换 (HQ) ==========
+# Optimized shaders for higher-end GPU:
+CTRL+1 no-osd change-list glsl-shaders set "~~/shaders/Anime4K_Clamp_Highlights.glsl:~~/shaders/Anime4K_Restore_CNN_VL.glsl:~~/shaders/Anime4K_Upscale_CNN_x2_VL.glsl:~~/shaders/Anime4K_AutoDownscalePre_x2.glsl:~~/shaders/Anime4K_AutoDownscalePre_x4.glsl:~~/shaders/Anime4K_Upscale_CNN_x2_M.glsl"; show-text "Anime4K: Mode A (HQ)"
+CTRL+2 no-osd change-list glsl-shaders set "~~/shaders/Anime4K_Clamp_Highlights.glsl:~~/shaders/Anime4K_Restore_CNN_Soft_VL.glsl:~~/shaders/Anime4K_Upscale_CNN_x2_VL.glsl:~~/shaders/Anime4K_AutoDownscalePre_x2.glsl:~~/shaders/Anime4K_AutoDownscalePre_x4.glsl:~~/shaders/Anime4K_Upscale_CNN_x2_M.glsl"; show-text "Anime4K: Mode B (HQ)"
+CTRL+3 no-osd change-list glsl-shaders set "~~/shaders/Anime4K_Clamp_Highlights.glsl:~~/shaders/Anime4K_Upscale_Denoise_CNN_x2_VL.glsl:~~/shaders/Anime4K_AutoDownscalePre_x2.glsl:~~/shaders/Anime4K_AutoDownscalePre_x4.glsl:~~/shaders/Anime4K_Upscale_CNN_x2_M.glsl"; show-text "Anime4K: Mode C (HQ)"
+CTRL+4 no-osd change-list glsl-shaders set "~~/shaders/Anime4K_Clamp_Highlights.glsl:~~/shaders/Anime4K_Restore_CNN_VL.glsl:~~/shaders/Anime4K_Upscale_CNN_x2_VL.glsl:~~/shaders/Anime4K_Restore_CNN_M.glsl:~~/shaders/Anime4K_AutoDownscalePre_x2.glsl:~~/shaders/Anime4K_AutoDownscalePre_x4.glsl:~~/shaders/Anime4K_Upscale_CNN_x2_M.glsl"; show-text "Anime4K: Mode A+A (HQ)"
+CTRL+5 no-osd change-list glsl-shaders set "~~/shaders/Anime4K_Clamp_Highlights.glsl:~~/shaders/Anime4K_Restore_CNN_Soft_VL.glsl:~~/shaders/Anime4K_Upscale_CNN_x2_VL.glsl:~~/shaders/Anime4K_AutoDownscalePre_x2.glsl:~~/shaders/Anime4K_AutoDownscalePre_x4.glsl:~~/shaders/Anime4K_Restore_CNN_Soft_M.glsl:~~/shaders/Anime4K_Upscale_CNN_x2_M.glsl"; show-text "Anime4K: Mode B+B (HQ)"
+CTRL+6 no-osd change-list glsl-shaders set "~~/shaders/Anime4K_Clamp_Highlights.glsl:~~/shaders/Anime4K_Upscale_Denoise_CNN_x2_VL.glsl:~~/shaders/Anime4K_AutoDownscalePre_x2.glsl:~~/shaders/Anime4K_AutoDownscalePre_x4.glsl:~~/shaders/Anime4K_Restore_CNN_M.glsl:~~/shaders/Anime4K_Upscale_CNN_x2_M.glsl"; show-text "Anime4K: Mode C+A (HQ)"
+
+CTRL+0 no-osd change-list glsl-shaders clr ""; show-text "GLSL shaders cleared"
+```
+
+
+### Anime4K 模式说明 {#anime4k-模式说明}
+
+| 快捷键 | 模式     | 适用场景         |
+|-----|--------|--------------|
+| Ctrl+1 | Mode A   | 标准线条复原+放大 |
+| Ctrl+2 | Mode B   | 柔和线条复原+放大（降噪） |
+| Ctrl+3 | Mode C   | 强力降噪+放大（压制源/低码率） |
+| Ctrl+4 | Mode A+A | 双重线条复原（高质量源推荐） |
+| Ctrl+5 | Mode B+B | 双重柔和复原     |
+| Ctrl+6 | Mode C+A | 降噪+线条复原    |
+| Ctrl+0 | 清除     | 禁用所有着色器   |
+
+
+## 脚本插件 {#脚本插件}
+
+MPV 通过 Lua 脚本扩展功能。脚本位于 `~/.config/mpv/scripts/` 目录。
+
+
+### ModernZ - 现代化 OSC 界面 {#modernz-现代化-osc-界面}
+
+
+#### 仓库地址 {#仓库地址}
+
+<https://github.com/Samillion/ModernZ>
+
+
+#### 功能介绍 {#功能介绍}
+
+ModernZ 是 MPV 的现代化屏幕控制器（OSC），替代默认的简陋界面
+
+
+#### 配置方法 {#配置方法}
+
+配置文件：=~/.config/mpv/script-opts/modernz.conf=
+
+```cfg
+# 外观
+language=en                         # 英文界面
+icon_theme=fluent                   # Fluent 图标风格
+osc_color=#000000                   # 黑色 OSC 背景
+seekbarfg_color=#FB8C00             # 橙色进度条
+hover_effect=size,glow,color        # 悬停效果：尺寸+发光+颜色
+
+# 行为
+hidetimeout=2000                    # 2秒后自动隐藏
+bottomhover=yes                     # 仅底部悬停显示
+bottomhover_zone=130                # 悬停区域高度130像素
+mouse_seek_pause=yes                # 拖动进度条时暂停
+
+# 按钮
+jump_buttons=yes                    # 显示跳转按钮
+jump_amount=10                      # 跳转10秒
+track_nextprev_buttons=yes          # 播放列表上/下一个
+screenshot_button=yes               # 截图按钮
+ontop_button=yes                    # 置顶按钮
+
+# 字幕抬升
+raise_subtitles=yes                 # OSC显示时抬升字幕
+raise_subtitle_amount=125           # 抬升125像素
+
+# 章节和时间
+show_chapter_title=yes              # 显示章节标题
+timetotal=yes                       # 显示总时间而非剩余时间
+time_format=dynamic                 # 动态时间格式（MM:SS或HH:MM:SS）
+```
+
+配合 `mpv.conf` 中的设置：
+
+```cfg
+osc=no                              # 禁用默认OSC
+osd-bar=no                          # 禁用默认OSD进度条
+```
+
+
+### thumbfast - 缩略图预览 {#thumbfast-缩略图预览}
+
+
+#### 仓库地址 {#仓库地址}
+
+<https://github.com/po5/thumbfast>
+
+
+#### 功能介绍 {#功能介绍}
+
+在 OSC 进度条上悬停时显示视频缩略图预览，快速定位场景。
+
+
+#### 配置方法 {#配置方法}
+
+thumbfast 无需额外配置，直接放入 `scripts/` 目录即可工作。配合 ModernZ 使用时，缩略图会自动显示在进度条上方。
+
+ModernZ 配置中的相关选项：
+
+```cfg
+thumbnail_border=3                  # 缩略图边框宽度
+thumbnail_border_radius=3           # 圆角半径
+thumbnail_border_color=#111111      # 边框颜色
+```
+
+
+### autoload - 自动加载播放列表 {#autoload-自动加载播放列表}
+
+
+#### 仓库地址 {#仓库地址}
+
+<https://github.com/mpv-player/mpv/blob/master/TOOLS/lua/autoload.lua>
+
+
+#### 功能介绍 {#功能介绍}
+
+自动将当前文件所在目录的其他媒体文件加载到播放列表中，方便连续播放剧集。
+
+
+#### 配置方法 {#配置方法}
+
+配置文件：=~/.config/mpv/script-opts/autoload.conf=
+
+```cfg
+# 是否自动加载当前目录（不含子目录）所有图片到播放列表，默认：yes
+images=no
+```
+
+
+### playlistmanager - 播放列表管理器 {#playlistmanager-播放列表管理器}
+
+
+#### 仓库地址 {#仓库地址}
+
+<https://github.com/jonniek/mpv-playlistmanager>
+
+
+#### 功能介绍 {#功能介绍}
+
+提供强大的播放列表管理界面
+
+
+#### 配置方法 {#配置方法}
+
+配置文件：=~/.config/mpv/script-opts/playlistmanager.conf=
+
+```cfg
+# 主要快捷键
+key_showplaylist=F8                 # F8 显示播放列表
+key_closeplaylist=ESC F8            # ESC 或 F8 关闭播放列表
+```
+
+按 `F8` 打开播放列表管理器，可以查看和管理当前播放列表。
+
+
+### mpvSockets - IPC Socket 支持 {#mpvsockets-ipc-socket-支持}
+
+
+#### 功能介绍 {#功能介绍}
+
+启用 MPV 的 IPC Socket，允许外部程序控制 MPV（如浏览器插件）。
+
+
+#### 配置方法 {#配置方法}
+
+脚本会自动在 `/tmp/mpvsocket` 创建 socket 文件，无需额外配置。
+
+
+### audio-osc - 音频文件 OSC {#audio-osc-音频文件-osc}
+
+
+#### 功能介绍 {#功能介绍}
+
+为音频文件提供专门的 OSC 界面，显示专辑封面、元数据等信息。
+
+
+#### 配置方法 {#配置方法}
+
+无需额外配置，检测到音频文件时自动激活。
+
+
+## 目录结构 {#目录结构}
+
+完整的 MPV 配置目录结构：
+
+```text
+~/.config/mpv/
+├── mpv.conf                        # 主配置文件
+├── input.conf                      # 快捷键配置
+├── scripts/                        # Lua 脚本目录
+│   ├── audio-osc.lua
+│   ├── autoload.lua
+│   ├── modernz.lua
+│   ├── mpvSockets.lua
+│   ├── playlistmanager.lua
+│   └── thumbfast.lua
+├── script-opts/                    # 脚本配置目录
+│   ├── autoload.conf
+│   ├── modernz.conf
+│   └── playlistmanager.conf
+└── shaders/                        # 着色器目录
+    ├── Anime4K_Clamp_Highlights.glsl
+    ├── Anime4K_Restore_CNN_VL.glsl
+    ├── Anime4K_Restore_CNN_M.glsl
+    ├── Anime4K_Restore_CNN_Soft_VL.glsl
+    ├── Anime4K_Restore_CNN_Soft_M.glsl
+    ├── Anime4K_Upscale_CNN_x2_VL.glsl
+    ├── Anime4K_Upscale_CNN_x2_M.glsl
+    ├── Anime4K_Upscale_Denoise_CNN_x2_VL.glsl
+    ├── Anime4K_AutoDownscalePre_x2.glsl
+    └── Anime4K_AutoDownscalePre_x4.glsl
+```
+
+
+## Anime4K 着色器安装 {#anime4k-着色器安装}
+
+```bash
+# 下载 Anime4K 着色器
+cd ~/.config/mpv
+git clone https://github.com/bloc97/Anime4K.git temp_anime4k
+
+# 复制 GLSL 着色器文件
+mkdir -p shaders
+cp temp_anime4k/glsl/*.glsl shaders/
+
+# 清理临时文件
+rm -rf temp_anime4k
+```
+
+
+## 参考资源 {#参考资源}
+
+-   MPV 官方文档：<https://mpv.io/manual/master/>
+-   Anime4K 项目：<https://github.com/bloc97/Anime4K>
+-   ModernZ OSC：<https://github.com/Samillion/ModernZ>
+-   thumbfast：<https://github.com/po5/thumbfast>
+-   mpv-playlistmanager：<https://github.com/jonniek/mpv-playlistmanager>
