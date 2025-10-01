@@ -1,0 +1,311 @@
+#+hugo_base_dir: ../../
+#+hugo_section: tech
+#+STARTUP: content
+#+TITLE: 借助 cloudflared 配置 DNS over HTTPS
+#+author: wang1zhen
+#+DATE: <2025-10-01 Wed>
+#+EXPORT_FILE_NAME: 借助 cloudflared 配置 DNS over HTTPS
+#+description: 借助 cloudflared 在 Arch linux 下配置 DNS over HTTPS 并验证。
+#+hugo_draft: false
+
+* 安装配置步骤
+
+** 安装 cloudflared
+
+   #+BEGIN_SRC bash
+     sudo pacman -S cloudflared
+   #+END_SRC
+
+** 创建 systemd 服务文件
+
+   #+BEGIN_SRC bash
+     sudo vim /etc/systemd/system/cloudflared.service
+   #+END_SRC
+
+   #+BEGIN_SRC conf
+     [Unit]
+     Description=DNS over HTTPS proxy client
+     Wants=network-online.target nss-lookup.target
+     Before=nss-lookup.target
+
+     [Service]
+     AmbientCapabilities=CAP_NET_BIND_SERVICE
+     CapabilityBoundingSet=CAP_NET_BIND_SERVICE
+     DynamicUser=yes
+     ExecStart=/usr/bin/cloudflared proxy-dns --port 5053 --upstream https://1.1.1.1/dns-query --upstream https://1.0.0.1/dns-query
+
+     [Install]
+     WantedBy=multi-user.target
+   #+END_SRC
+
+** 启动 cloudflared 服务
+
+   #+BEGIN_SRC bash
+     # 重载 systemd 配置
+     sudo systemctl daemon-reload
+
+     # 启用开机自启
+     sudo systemctl enable cloudflared
+
+     # 立即启动服务
+     sudo systemctl start cloudflared
+
+     # 检查服务状态
+     sudo systemctl status cloudflared
+   #+END_SRC
+
+   确认服务显示为 =active (running)= 。
+
+** 配置 systemd-resolved
+
+*** 创建 drop-in 配置目录
+
+    #+BEGIN_SRC bash
+      sudo mkdir -p /etc/systemd/resolved.conf.d
+    #+END_SRC
+
+*** 创建配置文件
+
+    #+BEGIN_SRC bash
+      sudo vim /etc/systemd/resolved.conf.d/cloudflare-doh.conf
+    #+END_SRC
+
+    #+BEGIN_SRC conf
+      [Resolve]
+      DNS=127.0.0.1:5053
+      FallbackDNS=1.1.1.1 1.0.0.1
+      DNSOverTLS=no
+      Domains=~.
+    #+END_SRC
+
+** 重启 systemd-resolved
+
+   #+BEGIN_SRC bash
+     sudo systemctl restart systemd-resolved
+   #+END_SRC
+
+** 验证配置
+
+*** 检查 cloudflared 端口监听
+
+    #+BEGIN_SRC bash
+      sudo ss -tulpn | grep 5053
+    #+END_SRC
+
+    应该看到类似输出：
+
+    #+BEGIN_EXAMPLE
+    udp   UNCONN 0      0          127.0.0.1:5053       0.0.0.0:*
+    tcp   LISTEN 0      4096       127.0.0.1:5053       0.0.0.0:*
+    #+END_EXAMPLE
+
+*** 查看 DNS 配置状态
+
+    #+BEGIN_SRC bash
+      resolvectl status
+    #+END_SRC
+
+    应该看到：
+
+    #+BEGIN_EXAMPLE
+    Global
+           DNS Servers: 127.0.0.1:5053
+    Fallback DNS Servers: 1.1.1.1
+                          1.0.0.1
+              DNS Domain: ~.
+    #+END_EXAMPLE
+
+*** 测试 DNS 解析
+
+    #+BEGIN_SRC bash
+      # 测试普通域名
+      resolvectl query google.com
+
+      # 测试 Cloudflare
+      resolvectl query cloudflare.com
+
+      # 测试 Tailscale 域名
+      resolvectl query something.tail4ef8f.ts.net
+    #+END_SRC
+
+*** 查看合并后的完整配置
+
+    #+BEGIN_SRC bash
+      systemd-analyze cat-config systemd/resolved.conf
+    #+END_SRC
+
+*** 在浏览器中验证 DoH
+
+    访问：https://1.1.1.1/help
+
+    查看页面显示：
+    - *Using DNS over HTTPS (DoH)* : Yes ✓
+    - *Connected to* : 1.1.1.1
+
+** 查看服务日志（可选）
+
+*** 查看 cloudflared 日志
+
+    #+BEGIN_SRC bash
+      # 查看最近 50 条日志
+      sudo journalctl -u cloudflared -n 50
+
+      # 实时查看日志
+      sudo journalctl -u cloudflared -f
+    #+END_SRC
+
+*** 查看 systemd-resolved 日志
+
+    #+BEGIN_SRC bash
+      sudo journalctl -u systemd-resolved -n 50
+    #+END_SRC
+
+* 故障排查
+
+** cloudflared 服务无法启动
+
+*** 排查步骤
+
+    #+BEGIN_SRC bash
+      # 查看详细错误信息
+      sudo journalctl -u cloudflared -n 50 --no-pager
+
+      # 检查端口占用
+      sudo ss -tulpn | grep 5053
+
+      # 手动测试 cloudflared
+      sudo cloudflared proxy-dns --port 5053 --upstream https://1.1.1.1/dns-query
+    #+END_SRC
+
+*** 常见原因
+
+    - 端口 5053 被占用
+    - 网络连接问题
+
+** DNS 解析不工作
+
+*** 排查步骤
+
+    #+BEGIN_SRC bash
+      # 检查两个服务状态
+      systemctl status cloudflared
+      systemctl status systemd-resolved
+
+      # 检查端口监听
+      sudo ss -tulpn | grep -E ':(53|5053)'
+
+      # 测试本地 DNS
+      resolvectl query example.com
+    #+END_SRC
+
+*** 解决方法
+
+    #+BEGIN_SRC bash
+      # 重启服务
+      sudo systemctl restart cloudflared
+      sudo systemctl restart systemd-resolved
+
+      # 清除 DNS 缓存
+      resolvectl flush-caches
+    #+END_SRC
+
+** Tailscale 域名无法解析
+
+*** 检查 Tailscale 接口
+
+    #+BEGIN_SRC bash
+      resolvectl status tailscale0
+    #+END_SRC
+
+    Tailscale 应该自动配置其 DNS，如果有问题：
+
+    #+BEGIN_SRC bash
+      # 重启 Tailscale
+      sudo systemctl restart tailscaled
+
+      # 重启 systemd-resolved
+      sudo systemctl restart systemd-resolved
+    #+END_SRC
+
+* 性能优化（可选）
+
+** 调整 DNS 缓存时间
+
+   编辑配置：
+
+   #+BEGIN_SRC bash
+     sudo vim /etc/systemd/resolved.conf.d/cloudflare-doh.conf
+   #+END_SRC
+
+   添加缓存设置：
+
+   #+BEGIN_SRC conf
+     [Resolve]
+     DNS=127.0.0.1:5053
+     FallbackDNS=1.1.1.1 1.0.0.1
+     DNSOverTLS=no
+     Domains=~.
+     Cache=yes
+     CacheFromLocalhost=yes
+   #+END_SRC
+
+   重启服务：
+
+   #+BEGIN_SRC bash
+     sudo systemctl restart systemd-resolved
+   #+END_SRC
+
+* 卸载配置
+
+  如需恢复默认配置：
+
+  #+BEGIN_SRC bash
+    # 停止并禁用 cloudflared
+    sudo systemctl stop cloudflared
+    sudo systemctl disable cloudflared
+
+    # 删除服务文件
+    sudo rm /etc/systemd/system/cloudflared.service
+
+    # 删除 resolved 配置
+    sudo rm /etc/systemd/resolved.conf.d/cloudflare-doh.conf
+
+    # 重载 systemd
+    sudo systemctl daemon-reload
+
+    # 重启 systemd-resolved
+    sudo systemctl restart systemd-resolved
+
+    # 验证恢复
+    resolvectl status
+  #+END_SRC
+
+* 配置文件位置总结
+
+  | 文件/目录                                             | 作用                          |
+  |-------------------------------------------------------+-------------------------------|
+  | =/etc/systemd/system/cloudflared.service=             | cloudflared 服务配置          |
+  | =/etc/systemd/resolved.conf.d/cloudflare-doh.conf=    | systemd-resolved DNS 配置     |
+  | =/etc/systemd/resolved.conf=                          | 主配置文件（未修改）          |
+  | =/etc/resolv.conf=                                    | 符号链接（无需修改）          |
+
+* 工作原理示意图
+
+  #+BEGIN_EXAMPLE
+  应用程序
+      ↓
+  systemd-resolved (127.0.0.53:53)
+      ↓
+  cloudflared (127.0.0.1:5053)
+      ↓
+  Cloudflare DoH (HTTPS 加密)
+      ↓
+  1.1.1.1 / 1.0.0.1
+  #+END_EXAMPLE
+
+* 相关资源
+
+  - [[https://wiki.archlinux.org/title/Cloudflared][Arch Wiki - Cloudflared]]
+  - [[https://developers.cloudflare.com/1.1.1.1/][Cloudflare 1.1.1.1 Documentation]]
+  - [[https://www.freedesktop.org/software/systemd/man/resolved.conf.html][systemd-resolved.conf Manual]]
+  - [[https://1.1.1.1/help][Cloudflare DNS 测试页面]]
