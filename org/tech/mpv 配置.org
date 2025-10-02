@@ -28,13 +28,15 @@
     vo=gpu-next                         # 使用新的GPU渲染器（mpv 0.36+）
     gpu-api=auto                        # 自动选择最佳GPU API
     dither-depth=auto                   # 自动抖动深度
-    hwdec=auto-safe                     # 自动硬件解码（避免CUDA错误）
+    hwdec=auto-copy                     # 硬件解码（copy-back 模式，兼容 SVP）
+    hwdec-codecs=all                    # 对所有编解码器启用硬件解码
     video-sync=display-resample         # 视频同步模式
     interpolation                       # 启用帧插值（运动补偿）
+    hr-seek-framedrop=no                # 修复音频同步（SVP 需要）
 
     # ========== 播放控制 ==========
     keep-open=always                    # 每个文件播完后暂停
-    save-position-on-quit=yes           # 退出时保存播放进度
+    no-resume-playback                  # 禁用播放进度记忆（SVP 不兼容）
 
     # ========== 音频/字幕 ==========
     audio-file-auto=fuzzy               # 自动加载外挂音轨
@@ -306,6 +308,20 @@
 
 *** 配置方法
     无需额外配置，脚本会在每次文件加载时自动检测并调整 OSC 显示模式。
+
+* SVP 补帧配置
+
+  SVP (SmoothVideo Project) 是实时视频补帧软件，可将低帧率视频提升至高帧率。使用 SVP 需要在 =mpv.conf= 中添加以下配置：
+
+  #+BEGIN_SRC conf
+    # ========== SVP 补帧配置 ==========
+    hwdec=auto-copy                     # 使用兼容 Vapoursynth 的硬件解码
+    hwdec-codecs=all
+    hr-seek-framedrop=no                # 修复音频同步
+    no-resume-playback                  # 禁用播放进度记忆（与 SVP 冲突）
+  #+END_SRC
+
+  配合已有的 mpvSockets 脚本，无需额外配置 IPC Socket。
 
 * 目录结构
 
