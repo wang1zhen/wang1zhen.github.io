@@ -781,120 +781,37 @@ sudo apt update && sudo apt upgrade -y
 ```
 
 
-### 安装zrepl自动快照系统 {#安装zrepl自动快照系统}
+### 安装 znapzend 自动快照系统 {#安装-znapzend-自动快照系统}
 
 ```sh
-# 使用官方APT仓库安装zrepl
-(
-    set -ex
-    zrepl_apt_key_url=https://zrepl.cschwarz.com/apt/apt-key.asc
-    zrepl_apt_key_dst=/usr/share/keyrings/zrepl.gpg
-    zrepl_apt_repo_file=/etc/apt/sources.list.d/zrepl.list
-
-    # Install dependencies for subsequent commands
-    sudo apt update && sudo apt install curl gnupg lsb-release
-
-    # Deploy the zrepl apt key.
-    curl -fsSL "$zrepl_apt_key_url" | tee | gpg --dearmor | sudo tee "$zrepl_apt_key_dst" > /dev/null
-
-    # Add the zrepl apt repo.
-    ARCH="$(dpkg --print-architecture)"
-    CODENAME="$(lsb_release -i -s | tr '[:upper:]' '[:lower:]') $(lsb_release -c -s | tr '[:upper:]' '[:lower:]')"
-    echo "Using Distro and Codename: $CODENAME"
-    echo "deb [arch=$ARCH signed-by=$zrepl_apt_key_dst] https://zrepl.cschwarz.com/apt/$CODENAME main" | sudo tee "$zrepl_apt_repo_file" > /dev/null
-
-    # Update apt repos.
-    sudo apt update
-)
-
-# 安装zrepl
-sudo apt install -y zrepl
+# 直接从官方仓库安装 znapzend
+sudo apt update
+sudo apt install -y znapzend
 ```
 
 
-### 配置zrepl自动快照系统 {#配置zrepl自动快照系统}
+### 配置 znapzend 自动快照 {#配置-znapzend-自动快照}
 
 ```sh
-sudo tee /etc/zrepl/zrepl.yml << 'EOF'
-global:
-  logging:
-    - type: stdout
-      level: info
-      format: human
+# 为 rpool/ROOT/debian 与 rpool/home 配置本地快照保留计划（按当前 ZFS 布局无需递归）
+# 计划含义：
+#  - 每小时快照，保留 24 小时（1d=>1h）
+#  - 每日快照，保留 7 天（7d=>1d）
+#  - 每周快照，保留 4 周（4w=>1w）
+# 注意：计划项的语法为 “保留时长=>间隔”；保留时长必须大于等于该项的间隔。
+sudo znapzendzetup create SRC '1d=>1h,7d=>1d,4w=>1w' rpool/ROOT/debian
+sudo znapzendzetup create SRC '1d=>1h,7d=>1d,4w=>1w' rpool/home
 
-jobs:
-  - name: "hourly_snapshots"
-    type: snap
-    filesystems: {
-      "rpool/ROOT/debian": true,
-      "rpool/home<": true
-    }
-    snapshotting:
-      type: periodic
-      prefix: hourly_
-      interval: 1h
-    pruning:
-      keep:
-        - type: regex
-          regex: "^apt_.*"  # 保留由 APT 钩子创建的快照
-        - type: last_n
-          count: 24  # 保留最近24个小时快照
+# 说明：znapzend 只管理自身前缀的快照（默认 znapzend），不会删除 apt_ 前缀等外部创建的快照
 
-  - name: "daily_snapshots"
-    type: snap
-    filesystems: {
-      "rpool/ROOT/debian": true,
-      "rpool/home<": true
-    }
-    snapshotting:
-      type: periodic
-      prefix: daily_
-      interval: 24h
-    pruning:
-      keep:
-        - type: regex
-          regex: "^apt_.*"  # 保留由 APT 钩子创建的快照
-        - type: last_n
-          count: 30   # 保留最近30天的每日快照
+# 启用并启动 znapzend 服务
+sudo systemctl enable znapzend
+sudo systemctl start znapzend
+# 修改配置后可向守护进程发送 HUP 使其重载配置
+sudo systemctl kill -s HUP znapzend || true
 
-  - name: "weekly_snapshots"
-    type: snap
-    filesystems: {
-      "rpool/ROOT/debian": true,
-      "rpool/home<": true
-    }
-    snapshotting:
-      type: periodic
-      prefix: weekly_
-      interval: 168h
-    pruning:
-      keep:
-        - type: regex
-          regex: "^apt_.*"  # 保留由 APT 钩子创建的快照
-        - type: last_n
-          count: 12   # 保留最近12周的每周快照
-
-  - name: "monthly_snapshots"
-    type: snap
-    filesystems: {
-      "rpool/ROOT/debian": true,
-      "rpool/home<": true
-    }
-    snapshotting:
-      type: periodic
-      prefix: monthly_
-      interval: 720h
-    pruning:
-      keep:
-        - type: regex
-          regex: "^apt_.*"  # 保留由 APT 钩子创建的快照
-        - type: last_n
-          count: 12   # 保留最近12个月的每月快照
-EOF
-
-# 启用并启动zrepl服务
-sudo systemctl enable zrepl
-sudo systemctl start zrepl
+# 查看 znapzend 配置
+sudo znapzendzetup list
 
 # 注意：用户缓存数据集（rpool/cache-*）不包含在快照策略中
 # 这些数据集被设计为临时缓存，不需要快照保护
@@ -1062,8 +979,8 @@ zfs list -t snapshot | grep apt | awk '{print $1}' | xargs -r -n1 sudo zfs destr
 echo "Verifying snapshots are deleted:"
 zfs list -t snapshot | grep apt || echo "No apt snapshots, test complete"
 
-# Verify zrepl service status
-sudo systemctl status zrepl
+# Verify znapzend service status
+sudo systemctl status znapzend
 ```
 
 
@@ -1285,8 +1202,8 @@ zfs list -t snapshot                 # 查看快照
 sudo /usr/local/bin/zfs-apt-snapshot pre   # 手动创建pre快照
 tail -f /var/log/zfs-apt-snapshots.log     # 查看快照日志
 zfs list -t snapshot | grep apt            # 查看apt快照
-sudo systemctl status zrepl                # 查看zrepl状态
-sudo journalctl -u zrepl -f               # 查看zrepl实时日志
+sudo systemctl status znapzend            # 查看 znapzend 状态
+sudo journalctl -u znapzend -f           # 查看 znapzend 实时日志
 
 # 休眠管理
 swapon --show                              # 检查交换分区状态

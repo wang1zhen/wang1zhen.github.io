@@ -983,98 +983,51 @@
      sudo pacman -Syu
    #+end_src
 
-** 安装yay和zrepl
+** 安装 AUR 助手：paru
    #+begin_src sh
-     # 安装yay-bin（AUR helper）
-     sudo pacman -S --needed git base-devel && git clone https://aur.archlinux.org/yay-bin.git && cd yay-bin && makepkg -si
+     # 安装构建依赖
+     sudo pacman -S --needed base-devel git
 
-     # 使用yay安装zrepl
-     yay -S zrepl
+     # 使用 paru-bin（预编译，避免本机编译 Rust 工具链）
+     mkdir -p "$HOME/builds" && cd "$HOME/builds"
+     git clone https://aur.archlinux.org/paru-bin.git
+     cd paru-bin
+     makepkg -si   # 注意：makepkg 需要在非 root 用户下执行
+
+     # 验证安装
+     paru -V
+
+     # 示例：使用 paru 安装 AUR 软件包
+     # paru -S <aur-package>
    #+end_src
 
-** 配置zrepl自动快照系统
+** 安装 znapzend
    #+begin_src sh
-     sudo mkdir -p /etc/zrepl
-     sudo tee /etc/zrepl/zrepl.yml << 'EOF'
-     global:
-       logging:
-         - type: stdout
-           level: info
-           format: human
+     # 安装 znapzend（ZFS 快照与复制管理器）
+     paru -S znapzend
+   #+end_src
 
-     jobs:
-       - name: "system_snapshots"
-         type: snap
-         filesystems: {
-           "zroot/ROOT/root": true,
-           "zroot/home<": true
-         }
-         snapshotting:
-           type: periodic
-           prefix: hourly_
-           interval: 1h
-         pruning:
-           keep:
-             - type: regex
-               regex: "^pacman_.*"  # 保留由 pacman 自动快照创建的快照
-             - type: last_n
-               count: 24  # 保留最近24个小时快照
+** 配置 znapzend 自动快照
+   #+begin_src sh
+     # 为根与 home 配置本地快照保留策略（按当前 ZFS 布局无需递归）
+     # 计划含义：
+     #  - 每小时快照，保留 24 小时（1d=>1h）
+     #  - 每日快照，保留 7 天（7d=>1d）
+     #  - 每周快照，保留 4 周（4w=>1w）
+     # 注意：计划项的语法为 “保留时长=>间隔”；保留时长必须大于等于该项的间隔。
+     sudo znapzendzetup create SRC '1d=>1h,7d=>1d,4w=>1w' zroot/ROOT/root
+     sudo znapzendzetup create SRC '1d=>1h,7d=>1d,4w=>1w' zroot/home
 
-       - name: "daily_snapshots"
-         type: snap
-         filesystems: {
-           "zroot/ROOT/root": true,
-           "zroot/home<": true
-         }
-         snapshotting:
-           type: periodic
-           prefix: daily_
-           interval: 24h
-         pruning:
-           keep:
-             - type: regex
-               regex: "^pacman_.*"  # 保留由 pacman 自动快照创建的快照
-             - type: last_n
-               count: 30   # 保留最近30天的每日快照
+     # 说明：znapzend 只管理自身前缀的快照（默认 znapzend），不会删除 pacman_ 前缀等外部创建的快照
 
-       - name: "weekly_snapshots"
-         type: snap
-         filesystems: {
-           "zroot/ROOT/root": true,
-           "zroot/home<": true
-         }
-         snapshotting:
-           type: periodic
-           prefix: weekly_
-           interval: 168h
-         pruning:
-           keep:
-             - type: regex
-               regex: "^pacman_.*"  # 保留由 pacman 自动快照创建的快照
-             - type: last_n
-               count: 12   # 保留最近12周的每周快照
+     # 启用并启动 znapzend 服务
+     sudo systemctl enable znapzend
+     sudo systemctl start znapzend
+     # 修改配置后可向守护进程发送 HUP 使其重载配置
+     sudo systemctl kill -s HUP znapzend || true
 
-       - name: "monthly_snapshots"
-         type: snap
-         filesystems: {
-           "zroot/ROOT/root": true,
-           "zroot/home<": true
-         }
-         snapshotting:
-           type: periodic
-           prefix: monthly_
-           interval: 720h
-         pruning:
-           keep:
-             - type: regex
-               regex: "^pacman_.*"  # 保留由 pacman 自动快照创建的快照
-             - type: last_n
-               count: 12   # 保留最近12个月的每月快照
-     EOF
-
-     # 启用并启动zrepl服务
-     sudo systemctl enable zrepl
-     sudo systemctl start zrepl
+     # 查看 znapzend 配置
+     sudo znapzendzetup list
 
      # 注意：用户缓存数据集（zroot/cache-*）不包含在快照策略中
      # 这些数据集被设计为临时缓存，不需要快照保护
@@ -1242,9 +1195,9 @@
      # 数据集使用情况
      zfs get used,available,referenced,compressratio
 
-     # zrepl状态
-     sudo systemctl status zrepl
-     sudo journalctl -u zrepl -f
+     # znapzend 状态
+     sudo systemctl status znapzend
+     sudo journalctl -u znapzend -f
    #+end_src
 
 ** 快照恢复操作
@@ -1386,7 +1339,7 @@
     sudo zfs list            # 查看所有数据集
     sudo zpool scrub zroot   # 手动执行scrub
     sudo zpool trim zroot    # 手动执行trim
-    sudo systemctl status zrepl  # 查看zrepl状态
+    sudo systemctl status znapzend  # 查看 znapzend 状态
 
     # 定时器管理
     systemctl list-timers | grep zfs     # 查看ZFS定时器
