@@ -1015,8 +1015,8 @@
      #  - 每日快照，保留 7 天（7d=>1d）
      #  - 每周快照，保留 4 周（4w=>1w）
      # 注意：计划项的语法为 “保留时长=>间隔”；保留时长必须大于等于该项的间隔。
-     sudo znapzendzetup create SRC '1d=>1h,7d=>1d,4w=>1w' zroot/ROOT/root
-     sudo znapzendzetup create SRC '1d=>1h,7d=>1d,4w=>1w' zroot/home
+     sudo znapzendzetup create --tsformat='znapzend-%Y-%m-%d-%H%M%S' SRC '1d=>1h,7d=>1d,4w=>1w' zroot/ROOT/root
+     sudo znapzendzetup create --tsformat='znapzend-%Y-%m-%d-%H%M%S' SRC '1d=>1h,7d=>1d,4w=>1w' zroot/home
 
      # 说明：znapzend 只管理自身前缀的快照（默认 znapzend），不会删除 pacman_ 前缀等外部创建的快照
 
