@@ -1,0 +1,14 @@
+#+hugo_base_dir: ../../
+#+hugo_section: tech
+#+STARTUP: content
+#+TITLE: 系统熵生成随机密钥 token
+#+author: wang1zhen
+#+DATE: <2025-10-28 Tue>
+#+EXPORT_FILE_NAME: 系统熵生成随机密钥 token
+#+description: 用系统熵基于 base64 来生成随机的密钥 token
+#+hugo_draft: false
+
+#+begin_src shell
+  openssl rand -base64 32
+#+end_src
+
