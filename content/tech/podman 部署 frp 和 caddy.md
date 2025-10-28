@@ -10,11 +10,17 @@ draft = false
 
 应用配置放在 /opt；Quadlet 单元放在 /etc/containers/systemd。
 
-目录布局（系统级）
-_opt/podman/frp/frps.toml
-/opt/podman/caddy/Caddyfile
-/opt/podman/caddy/data_        ← Caddy 证书与 ACME 存储（挂到容器 _data）
-/opt/podman/caddy/config_      ← Caddy 运行期配置（挂到容器 /config）
+```text
+/opt/podman/
+├─ frp/
+│  └─ frps.toml
+└─ caddy/
+   └─ Caddyfile
+
+/etc/containers/systemd/
+├─ frps.container
+└─ caddy.container
+```
 
 
 ## frps 配置 {#frps-配置}
@@ -25,12 +31,12 @@ _opt/podman/frp/frps.toml
 bindPort = 7000
 
 auth.method = "token"
-auth.token = "asdfasdfasdf"
+auth.token = "REPLACE_WITH_STRONG_TOKEN"
 
 webServer.addr = "0.0.0.0"
 webServer.port = 7500
 webServer.user = "admin"
-webServer.password = "CHANGE_ME_STRONG"
+webServer.password = "REPLACE_WITH_STRONG_PASSWORD"
 ```
 
 
@@ -38,32 +44,20 @@ webServer.password = "CHANGE_ME_STRONG"
 
 `/opt/podman/caddy/Caddyfile`
 
-```json
+```cfg
+vps.wang1zhen.com:7500 {
+  reverse_proxy http://127.0.0.1:7750
+}
+
 :80 {
   root * /usr/share/caddy
   file_server
 }
-
 :443 {
   root * /usr/share/caddy
   file_server
+  tls internal
 }
-
-# 仅 7501 走反代 + HTTPS（自动证书）
-frp.example.com:7501 {
-  encode gzip
-  reverse_proxy frps:7500
-}
-```
-
-
-## Quadlet 网络 {#quadlet-网络}
-
-`/etc/containers/systemd/frpnet.network`
-
-```text
-[Network]
-Driver=bridge
 ```
 
 
@@ -71,60 +65,57 @@ Driver=bridge
 
 `/etc/containers/systemd/frps.container`
 
-```text
+```ini
 [Unit]
-Description=FRP server
+Description=frps
 
 [Container]
-Image=fatedier/frps:latest
+Image=docker.io/snowdreamtech/frps:alpine
 ContainerName=frps
-Network=frpnet
-Volume=/opt/podman/frp/frps.toml:/etc/frp/frps.toml
-PublishPort=7000:7000
-Command=-c /etc/frp/frps.toml
+PublishPort=7000:7000/tcp
+PublishPort=127.0.0.1:7750:7500/tcp
+Volume=/opt/podman/frp/frps.toml:/etc/frp/frps.toml:ro
 
 [Service]
 Restart=always
+
+[Install]
+WantedBy=multi-user.target
 ```
 
 
 ## Caddy Quadlet {#caddy-quadlet}
 
-`/etc/containers/systemd/caddy-frps.container`
+`/etc/containers/systemd/caddy.container`
 
-```text
+```ini
 [Unit]
 Description=Caddy
 
 [Container]
-Image=caddy:alpine
+Image=docker.io/caddy:2
 ContainerName=caddy
-Network=frpnet
-PublishPort=80:80
-PublishPort=443:443
-PublishPort=7501:7501
-Volume=/opt/podman/caddy/Caddyfile:/etc/caddy/Caddyfile
-Volume=/opt/podman/caddy/data:/data
-Volume=/opt/podman/caddy/config:/config
+Network=host
+Volume=/opt/podman/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+Volume=/opt/podman/caddy:/data
+Pull=always
 
 [Service]
 Restart=always
+
+[Install]
+WantedBy=multi-user.target
 ```
 
 
 ## 启动 {#启动}
 
 sudo systemctl daemon-reload
-sudo systemctl start frpnet.service frps.service caddy.service
+sudo systemctl start frpnet-network.service frps.service caddy.service
 
 验证
 curl -I <http://frp.example.com>        # 应 301 到 https
 curl -I <https://frp.example.com>
-curl -I <https://frp.example.com:7501>
+curl -I <https://frp.example.com:7500>
 podman logs --since=10m frps
 podman logs --since=10m caddy-frps
-
-防火墙
-
--   放行 80/tcp, 443/tcp, 7000/tcp, 7501/tcp。
--   7500 不暴露宿主，仅桥接网络内可见。
