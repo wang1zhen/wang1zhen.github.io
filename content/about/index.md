@@ -8,11 +8,11 @@ draft = false
 
 王 一臻 WANG Yizhen オウ イシン
 
-机械工程背景，研究方向为湍流流动控制与实验优化。
+机械工程专业，研究方向为湍流流动控制、流体实验设计与最优化。
 
-Focused on turbulent flow control and experimental optimization in mechanical engineering.
+Majored in mechanical engineering, with research focused on turbulent flow control, fluid experimental design, and optimization.
 
-機械工学を背景に、乱流制御と実験最適化を研究。
+機械工学を専攻し、研究分野は乱流流動制御、流体実験設計および最適化。
 
 -   Email: [wang1zhen97@gmail.com](mailto:wang1zhen97@gmail.com)
 -   Blog: [blog.wang1zhen.com](https://blog.wang1zhen.com)
