@@ -10,40 +10,175 @@
 
 * 系统准备
   #+begin_src bash
-    sudo pacman -S kdenlive ffmpeg libva-utils libva-mesa-driver mesa-vdpau libvdpau-va-gl amdgpu_top
+    sudo pacman -S kdenlive ffmpeg libva-utils libva-mesa-driver amdgpu_top
     vainfo | grep -E "H264|HEVC|AV1"
     sudo cat /sys/class/drm/renderD128/device/uevent | grep PCI_SLOT_NAME
+    lspci -nn | grep -E "VGA|3D|Display"
   #+end_src
 
-* Kdenlive 自定义预设
+* AV1
 
-  **H.264 固定质量**
   #+begin_src bash
-    f=mp4 vcodec=h264_vaapi vaapi_device=/dev/dri/renderD128 rc=constqp qp=22 g=240 bf=2 acodec=aac ab=192k channels=2 movflags=+faststart
+    f=mp4 vcodec=av1_amf rc=cqp qp=24 g=72 acodec=aac ab=320k usage=transcoding quality=quality profile=main movflags=+faststart
   #+end_src
 
-  **HEVC（H.265）版本**
+  - *Linux 特别说明*: 如果是 Linux 系统，建议添加 =vaapi_device=/dev/dri/renderD128= 以强制指定核显。
+
+** 参数深度拆解
+
+*** 容器与编码器 (Container & Codec)
+    决定视频的封装格式以及调用哪块硬件电路进行计算。
+
+    - =f=mp4= :: *封装格式 (Container Format)*
+      - *解释*: 指定输出文件的容器为 MP4。
+      - *原因*: 虽然 MKV 对 AV1 支持更好，但在 Windows 环境及大多数消费级播放器中，MP4 拥有最广泛的兼容性。
+      - *注意*: 这里的 MP4 容器承载了 AV1 视频流和 AAC 音频流。
+
+    - =vcodec=av1_amf= :: *视频编码器 (Video Codec)*
+      - *核心*: 调用 AMD 的 *Advanced Media Framework (AMF)* 接口。
+      - *硬件*: 直接激活 7840HS 核显中的 **VCN 4.0** (Video Core Next) 媒体引擎。
+      - *对比*:
+        | 编码器 | 类型 | 速度 | CPU占用 | 适用场景 |
+        |--------+------+------+---------+----------|
+        | ~av1_amf~ | 硬件 (GPU) | 极快 (~150fps+) | 极低 (<5%) | 录制、存档、通用导出 |
+        | ~libsvtav1~ | 软件 (CPU) | 慢 (~20fps) | 极高 (100%) | 极限体积压缩 (不推荐) |
+
+*** 画质控制 (Rate Control)
+    决定视频的清晰度与体积之间的平衡。
+
+    - =rc=cqp= :: *码率控制模式 (Rate Control Mode)*
+      - *全称*: Constant Quantization Parameter (恒定量化参数)。
+      - *机制*: 放弃对目标体积的控制，转而锁定每一帧的 *压缩力度*。
+      - *优势*: 无论画面静止还是剧烈运动，都能保证统一的视觉质量（防止运动模糊时出现马赛克）。
+      - *适用*: 本地存档、YouTube/Bilibili 高质量上传。
+
+    - =qp=24= :: *量化参数 (Quantization Parameter)*
+      - *解释*: 决定画质的具体数值（范围 0-51）。
+      - *数值含义*:
+        - *0*: 无损 (体积巨大)。
+        - *24*: *视觉无损 (Sweet Spot)*。对于 AV1，QP=24 提供的画质极佳，且体积通常只有 H.264 的 60%。
+        - *30+*: 开始出现肉眼可见的噪点。
+        - *51*: 极低画质。
+
+*** 结构与时间 (GOP Structure)
+    决定视频的帧结构，直接影响拖动进度条的流畅度和压缩效率。
+
+    - =g=72= :: *关键帧间隔 (GOP Size)*
+      - *定义*: 两个 I 帧 (关键帧) 之间的最大距离。
+      - *数学换算*:
+        - 假设项目为 *24 fps* (电影感): $72 \div 24 = 3$ 秒。
+        - 假设项目为 *60 fps* (游戏): $72 \div 60 = 1.2$ 秒 (偏短，建议改为 120)。
+      - *为什么选 72*:
+        - *拖动优化*: 3秒一个关键帧，播放器拖动进度条极其顺滑，无需长时间等待解码。
+        - *容错性*: 相比 ~g=240~ (10秒)，更短的 GOP 减少了文件损坏时的画面丢失风险。
+
+    - =movflags=+faststart= :: *Web 优化标记*
+      - *作用*: 将 MP4 的索引信息移动到文件头部。
+      - *效果*: 在网络环境（微信/Web）中实现“边下边播”，无需下载完整个文件即可开始播放。
+
+*** 音频参数 (Audio)
+    确保声音质量不会成为短板。
+
+    - =acodec=aac= :: *音频编码器*
+      - *解释*: Advanced Audio Coding。
+      - *地位*: MP4 容器的标准音频格式，兼容性 100%。
+
+    - =ab=320k= :: *音频码率 (Audio Bitrate)*
+      - *数值*: 320 kbps。
+      - *评价*: AAC 格式的 *透明音质* 标准。
+      - *对比*: 优于 MP3 320k，接近无损听感，体积增加可忽略不计。
+
+*** AMD AMF 专用优化 (Hardware Specifics)
+    微调 AMD 显卡驱动行为的参数。
+
+    - =usage=transcoding= :: *使用场景提示*
+      - *作用*: 告诉 GPU 驱动当前任务的性质。
+      - *区别*:
+        - ~transcoding~: *转码/导出*。利用更大的显存缓冲区预读分析，优先保证画质和压缩率。
+        - ~lowlatency~: *直播*。为低延迟牺牲部分画质。
+
+    - =quality=quality= :: *预设档位*
+      - *含义*: 告诉 AMF 引擎使用 *最高质量* 的算法进行编码。
+      - *代价*: 编码速度比 `quality=speed` 稍慢，但对于 7840HS 依然很快。
+
+    - =profile=main= :: *编码规格*
+      - *解释*: AV1 的 Main Profile (支持 8/10-bit, 4:2:0)。
+      - *目的*: 确保视频能在移动设备、浏览器和智能电视上正常硬解码播放。
+
+* H265
+
   #+begin_src bash
-    f=mp4 vcodec=hevc_vaapi vaapi_device=/dev/dri/renderD128 rc=constqp qp=22 g=240 bf=2 acodec=aac ab=192k channels=2 movflags=+faststart
+    f=mp4 vcodec=hevc_amf rc=cqp qp_i=20 qp_p=20 qp_b=20 g=72 bf=2 acodec=aac ab=320k usage=transcoding quality=quality profile=main movflags=+faststart
   #+end_src
 
-* 参数说明
-  | 参数 | 作用 |
-  |------|------|
-  | vaapi_device=/dev/dri/renderD128 | 指定 RX 7700 XT |
-  | rc=constqp | 固定量化模式 |
-  | qp=22 | 控制画质，数值越小越清晰 |
-  | g=240 | GOP 长度，约 4 秒 |
-  | bf=2 | 启用双向预测帧，提升压缩效率 |
-  | acodec=aac ab=192k channels=2 | 音频配置 |
-  | movflags=+faststart | 优化 MP4 播放头 |
+  - *Linux 特别说明*: 如果是 Linux 系统，建议添加 =vaapi_device=/dev/dri/renderD128= 以强制指定核显。
 
-* GPU 使用率监控
-  #+begin_src bash
-    amdgpu_top
-    # 或简化方式
-    watch -n 1 grep "VCN Encode" /sys/kernel/debug/dri/*/amdgpu_pm_info
-  #+end_src
-  **判断标准**
-  - VCN Encode 活动上升 → GPU 硬件编码已启用。
-  - 20–60% 占用为正常范围（VCN 为固定功能单元）。
+** 参数深度拆解
+
+*** 容器与编码器 (Container & Codec)
+    决定视频的封装格式以及调用哪块硬件电路进行计算。
+
+    - =f=mp4= :: *封装格式 (Container Format)*
+      - *解释*: 指定输出文件的容器为 MP4。
+      - *原因*: MP4 是 H.265 的标准容器，几乎所有现代设备（iPhone、Win10/11、智能电视）均能直接播放。
+
+    - =vcodec=hevc_amf= :: *视频编码器 (Video Codec)*
+      - *全称*: High Efficiency Video Coding (AMD Advanced Media Framework).
+      - *硬件*: 调用 780M 核显的 VCN 引擎。
+      - *速度*: 极快。在 7840HS 上，H.265 的编码速度通常比 AV1 更快，且驱动稳定性极高。
+      - *对比*: 相当于软件编码 (~libx265~) 的 `medium` 预设，但速度快 10 倍以上。
+
+*** 画质控制 (Rate Control)
+    HEVC 的 CQP 模式建议分别控制 I/P/B 帧的量化参数，以防止画面“呼吸效应”。
+
+    - =rc=cqp= :: *码率控制模式*
+      - *含义*: 恒定量化参数。锁定画质，不限制体积。
+
+    - =qp_i=20 qp_p=20 qp_b=20= :: *分帧量化参数*
+      - *为什么分开写*: 显式指定 I/P/B 帧的 QP 值，能确保画面在动态变化时质量保持一致，避免只有关键帧清晰、运动时模糊的问题。
+      - *数值选择 (20)*:
+        - *HEVC vs AV1*: H.265 的压缩效率略低于 AV1，因此需要比 AV1 的 QP(24) 更低的值才能获得同等画质。
+        - *20*: *高质量交付标准*。画质极佳，适合给客户发片或上传 B 站。
+        - *22-24*: 平衡点，适合日常存档。
+
+*** 结构与时间 (Structure & B-Frames)
+    这是 H.265 相比 H.264 的核心优势，也是 RDNA3 架构的强项。
+
+
+
+    - =bf=2= :: *B 帧数量 (B-Frames)*
+      - *含义*: 在两个参考帧之间插入 2 个双向预测帧 (B-Frame)。
+      - *重要性*: *必须开启*。Radeon 780M 完美支持 HEVC B 帧。开启后，在画质不变的情况下，体积可减少 10%-20%。
+      - *注意*: 只有 AMD 较新的显卡 (RDNA 架构) 才支持硬件 B 帧，7840HS 完全支持。
+
+    - =g=72= :: *关键帧间隔 (GOP)*
+      - *数学换算*: $72 \div 24 = 3$ 秒 (针对 24fps 项目)。
+      - *优势*: 拖动进度条极度流畅。
+      - *兼容性提示*: 如果上传 B 站后发现转码异常，可尝试改回标准的 ~g=120~ (5秒) 或 ~g=240~ (10秒)。
+
+    - =movflags=+faststart= :: *Web 优化标记*
+      - *作用*: 将 MP4 的索引信息移动到文件头部。
+      - *效果*: 使得视频在微信、网页或流媒体播放器中能“秒开”，无需等待文件完全下载。
+
+*** 音频参数 (Audio)
+    确保声音质量不会成为短板。
+
+    - =acodec=aac= :: *音频编码器*
+      - *解释*: Advanced Audio Coding，H.265 的标准搭档。
+
+    - =ab=320k= :: *音频码率 (Audio Bitrate)*
+      - *数值*: 320 kbps。
+      - *评价*: 接近无损听感，避免音频成为瓶颈。
+
+*** AMD AMF 专用优化 (Hardware Specifics)
+    微调 AMD 显卡驱动行为的参数。
+
+    - =usage=transcoding= :: *使用场景提示*
+      - *作用*: 告诉 GPU 驱动当前任务是“转码”，优先保证画质而非低延迟。
+
+    - =quality=quality= :: *预设档位*
+      - *含义*: 启用最高质量的编码算法。
+
+    - =profile=main= :: *编码规格*
+      - *解释*: HEVC Main Profile (8-bit)。
+      - *注意*: 如果你是录制 HDR 视频 (10-bit)，需要改为 ~profile=main10~ 并将像素格式设为 ~yuv420p10le~。对于普通 SDR 视频，保持 ~main~ 即可获得最大兼容性。
