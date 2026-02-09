@@ -2,7 +2,7 @@
 title = "kdenlive amd 加速渲染"
 author = ["wang1zhen"]
 description = "在 Arch Linux 下使用 kdenlive 时利用 amd 显卡加速渲染"
-date = 2025-10-25T00:00:00+09:00
+date = 2026-02-09T00:00:00+09:00
 draft = false
 +++
 
@@ -19,7 +19,7 @@ lspci -nn | grep -E "VGA|3D|Display"
 ## AV1 {#av1}
 
 ```bash
-f=mp4 vcodec=av1_amf rc=cqp qp=24 g=72 acodec=aac ab=320k usage=transcoding quality=quality profile=main movflags=+faststart
+f=mp4 vcodec=av1_amf vprofile=main rc=cqp qp=24 g=72 acodec=aac ab=320k usage=transcoding quality=quality movflags=+faststart
 ```
 
 -   **Linux 特别说明**: 如果是 Linux 系统，建议添加 `vaapi_device=/dev/dri/renderD128` 以强制指定核显。
@@ -138,7 +138,7 @@ f=mp4 vcodec=av1_amf rc=cqp qp=24 g=72 acodec=aac ab=320k usage=transcoding qual
 ## H265 {#h265}
 
 ```bash
-f=mp4 vcodec=hevc_amf rc=cqp qp_i=20 qp_p=20 qp_b=20 g=72 bf=2 acodec=aac ab=320k usage=transcoding quality=quality profile=main movflags=+faststart
+f=mp4 vcodec=hevc_amf rc=cqp qp_i=20 qp_p=20 qp_b=20 g=72 bf=2 acodec=aac ab=320k usage=transcoding quality=quality vprofile=main movflags=+faststart
 ```
 
 -   **Linux 特别说明**: 如果是 Linux 系统，建议添加 `vaapi_device=/dev/dri/renderD128` 以强制指定核显。
