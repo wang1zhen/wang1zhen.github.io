@@ -3,7 +3,7 @@
 #+STARTUP: content
 #+TITLE: kdenlive amd 加速渲染
 #+author: wang1zhen
-#+DATE: <2026-02-09 Mon>
+#+DATE: <2026-02-16 Mon>
 #+EXPORT_FILE_NAME: kdenlive amd 加速渲染
 #+description: 在 Arch Linux 下使用 kdenlive 时利用 amd 显卡加速渲染
 #+hugo_draft: false
@@ -18,11 +18,15 @@
 
 * AV1
 
+  Windows:
   #+begin_src bash
-    f=mp4 vcodec=av1_amf vprofile=main rc=cqp qp=24 g=72 acodec=aac ab=320k usage=transcoding quality=quality movflags=+faststart
+    f=mp4 vcodec=av1_amf vprofile=main rc=cqp qp=24 g=75 acodec=aac ab=320k usage=transcoding quality=quality movflags=+faststart
   #+end_src
 
-  - *Linux 特别说明*: 如果是 Linux 系统，建议添加 =vaapi_device=/dev/dri/renderD128= 以强制指定核显。
+  Linux:
+  #+begin_src bash
+    f=mp4 vcodec=av1_vaapi vaapi_device=/dev/dri/renderD128 qp=24 g=75 acodec=aac ab=320k movflags=+faststart
+  #+end_src
 
 ** 参数深度拆解
 
@@ -107,11 +111,15 @@
 
 * H265
 
+  Windows:
   #+begin_src bash
-    f=mp4 vcodec=hevc_amf rc=cqp qp_i=20 qp_p=20 qp_b=20 g=72 bf=2 acodec=aac ab=320k usage=transcoding quality=quality vprofile=main movflags=+faststart
+    f=mp4 vcodec=hevc_amf rc=cqp qp_i=20 qp_p=20 qp_b=20 g=75 bf=2 acodec=aac ab=320k usage=transcoding quality=quality vprofile=main movflags=+faststart
   #+end_src
 
-  - *Linux 特别说明*: 如果是 Linux 系统，建议添加 =vaapi_device=/dev/dri/renderD128= 以强制指定核显。
+  Linux:
+  #+begin_src bash
+    f=mp4 vcodec=hevc_vaapi vaapi_device=/dev/dri/renderD128 qp=20 g=75 bf=2 acodec=aac ab=320k vprofile=main movflags=+faststart
+  #+end_src
 
 ** 参数深度拆解
 

@@ -2,7 +2,7 @@
 title = "kdenlive amd 加速渲染"
 author = ["wang1zhen"]
 description = "在 Arch Linux 下使用 kdenlive 时利用 amd 显卡加速渲染"
-date = 2026-02-09T00:00:00+09:00
+date = 2026-02-16T00:00:00+09:00
 draft = false
 +++
 
@@ -18,11 +18,17 @@ lspci -nn | grep -E "VGA|3D|Display"
 
 ## AV1 {#av1}
 
+Windows:
+
 ```bash
-f=mp4 vcodec=av1_amf vprofile=main rc=cqp qp=24 g=72 acodec=aac ab=320k usage=transcoding quality=quality movflags=+faststart
+f=mp4 vcodec=av1_amf vprofile=main rc=cqp qp=24 g=75 acodec=aac ab=320k usage=transcoding quality=quality movflags=+faststart
 ```
 
--   **Linux 特别说明**: 如果是 Linux 系统，建议添加 `vaapi_device=/dev/dri/renderD128` 以强制指定核显。
+Linux:
+
+```bash
+f=mp4 vcodec=av1_vaapi vaapi_device=/dev/dri/renderD128 qp=24 g=75 acodec=aac ab=320k movflags=+faststart
+```
 
 
 ### 参数深度拆解 {#参数深度拆解}
@@ -137,11 +143,17 @@ f=mp4 vcodec=av1_amf vprofile=main rc=cqp qp=24 g=72 acodec=aac ab=320k usage=tr
 
 ## H265 {#h265}
 
+Windows:
+
 ```bash
-f=mp4 vcodec=hevc_amf rc=cqp qp_i=20 qp_p=20 qp_b=20 g=72 bf=2 acodec=aac ab=320k usage=transcoding quality=quality vprofile=main movflags=+faststart
+f=mp4 vcodec=hevc_amf rc=cqp qp_i=20 qp_p=20 qp_b=20 g=75 bf=2 acodec=aac ab=320k usage=transcoding quality=quality vprofile=main movflags=+faststart
 ```
 
--   **Linux 特别说明**: 如果是 Linux 系统，建议添加 `vaapi_device=/dev/dri/renderD128` 以强制指定核显。
+Linux:
+
+```bash
+f=mp4 vcodec=hevc_vaapi vaapi_device=/dev/dri/renderD128 qp=20 g=75 bf=2 acodec=aac ab=320k vprofile=main movflags=+faststart
+```
 
 
 ### 参数深度拆解 {#参数深度拆解}
