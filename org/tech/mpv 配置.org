@@ -3,7 +3,7 @@
 #+STARTUP: content
 #+TITLE: mpv 配置
 #+author: wang1zhen
-#+DATE: <2025-10-01 Wed>
+#+DATE: <2026-02-16 Mon>
 #+EXPORT_FILE_NAME: mpv 配置
 #+description: mpv 配置文件，以及插件和快捷键设置。
 #+hugo_draft: false
@@ -22,34 +22,36 @@
 
   =mpv.conf= 是 MPV 的主配置文件，位于 =~/.config/mpv/mpv.conf=。
 
-  #+BEGIN_SRC conf
+  #+BEGIN_SRC conf :tangle ~/.config/mpv/mpv.conf :mkdirp yes
     # ========== 画质设置 ==========
-    profile=gpu-hq                      # 使用高画质预设
-    vo=gpu-next                         # 使用新的GPU渲染器（mpv 0.36+）
-    gpu-api=auto                        # 自动选择最佳GPU API
-    dither-depth=auto                   # 自动抖动深度
-    hwdec=auto-copy                     # 硬件解码（copy-back 模式，兼容 SVP）
-    hwdec-codecs=all                    # 对所有编解码器启用硬件解码
-    video-sync=display-resample         # 视频同步模式
-    interpolation                       # 启用帧插值（运动补偿）
-    hr-seek-framedrop=no                # 修复音频同步（SVP 需要）
+    profile=gpu-hq                        # 使用高画质预设
+    vo=gpu-next                           # 使用新的GPU渲染器
+    gpu-api=auto                          # 自动选择最佳GPU API
+    dither-depth=auto                     # 自动抖动深度
+    hwdec=auto-safe
+    hwdec-codecs=all
+
+    video-sync=display-resample
+    interpolation
+    tscale=oversample                     # 使得插值更平滑
 
     # ========== 播放控制 ==========
-    keep-open=always                    # 每个文件播完后暂停
-    no-resume-playback                  # 禁用播放进度记忆（SVP 不兼容）
+    keep-open=always                      # 播放完暂停
+    save-position-on-quit=yes
 
     # ========== 音频/字幕 ==========
-    audio-file-auto=fuzzy               # 自动加载外挂音轨
-    audio-channels=stereo               # 双声道输出
-    audio-normalize-downmix=yes         # 规范化降混
-    volume=100                          # 默认音量
+    audio-file-auto=fuzzy
+    audio-channels=stereo
+    audio-normalize-downmix=yes
+    volume=100
+    volume-max=200
 
-    sub-auto=fuzzy                      # 自动加载外挂字幕
-    alang=ja,en,zh                      # 音轨语言优先级：日语>英语>中文
-    slang=zh,en,ja                      # 字幕语言优先级：中文>英语>日语
+    sub-auto=fuzzy
+    alang=ja,en,zh
+    slang=zh,en,ja
 
     # 字幕样式
-    sub-font='Noto Sans CJK SC'         # 中文字体
+    sub-font='Noto Sans CJK SC'
     sub-font-size=48
     sub-color='#FFFFFF'
     sub-border-size=3
@@ -57,24 +59,30 @@
     sub-shadow-offset=1
     sub-shadow-color='#000000'
 
-    # 次字幕配置（mpv 0.40+ 内置支持）
-    # 注意：次字幕样式继承主字幕设置，只能调整位置
-    secondary-sid=auto                 # 自动选择次字幕轨道
-    secondary-sub-pos=95               # 位置（0-150，100=屏幕底部）
-    secondary-sub-visibility=yes       # 默认显示次字幕
+    # 次字幕配置
+    secondary-sid=auto
+    secondary-sub-pos=95
+    secondary-sub-visibility=yes
 
     # ========== 界面设置 ==========
-    osc=no                              # 禁用默认OSC控制条
-    osd-bar=no                          # 禁用OSD进度条
-    border=no                           # 无窗口边框
-    autofit-larger=80%x80%              # 窗口最大为屏幕80%
-    volume-max=200                      # 最大音量200%
+    osc=no                                # 禁用默认OSC (使用 ModernZ)
+    osd-bar=no
+    border=no
+    autofit-larger=80%x80%
 
-    # ========== Anime4K画质增强 ==========
-    # Optimized shaders for higher-end GPU: Mode A+A (HQ)
+    # ========== Anime4K 智能加载策略 ==========
+    # 定义一个条件配置：只有分辨率 <= 1080P (高度 <= 1080) 时才启用 Anime4K
+    [Anime4K-Auto]
+    profile-cond=height <= 1080
+    profile-restore=copy
     glsl-shaders="~~/shaders/Anime4K_Clamp_Highlights.glsl:~~/shaders/Anime4K_Restore_CNN_VL.glsl:~~/shaders/Anime4K_Upscale_CNN_x2_VL.glsl:~~/shaders/Anime4K_Restore_CNN_M.glsl:~~/shaders/Anime4K_AutoDownscalePre_x2.glsl:~~/shaders/Anime4K_AutoDownscalePre_x4.glsl:~~/shaders/Anime4K_Upscale_CNN_x2_M.glsl"
-  #+END_SRC
 
+    # 定义一个针对 4K+ 视频的保护配置（可选，确保清理着色器）
+    [HighRes-Safe]
+    profile-cond=height > 1080
+    profile-restore=copy
+    glsl-shaders-clr
+  #+END_SRC
 ** 画质设置详解
 
    - =profile=gpu-hq= : 启用 MPV 内置的高画质预设，包含多项优化选项
@@ -119,7 +127,7 @@
 
   =input.conf= 定义了所有自定义快捷键绑定。
 
-  #+BEGIN_SRC conf
+  #+BEGIN_SRC conf :tangle ~/.config/mpv/input.conf :mkdirp yes
     # ========== 鼠标操作 ==========
     MBTN_LEFT_DBL cycle pause           # 双击左键：暂停/播放
     MBTN_RIGHT    ignore                # 右键单击：禁用
@@ -199,7 +207,7 @@
 *** 配置方法
     配置文件：=~/.config/mpv/script-opts/modernz.conf=
 
-    #+BEGIN_SRC conf
+    #+BEGIN_SRC conf :tangle ~/.config/mpv/script-opts/modernz.conf :mkdirp yes
       # 外观
       language=en                         # 英文界面
       icon_theme=fluent                   # Fluent 图标风格
@@ -265,7 +273,7 @@
 *** 配置方法
     配置文件：=~/.config/mpv/script-opts/autoload.conf=
 
-    #+BEGIN_SRC conf
+    #+BEGIN_SRC conf :tangle ~/.config/mpv/script-opts/autoload.conf :mkdirp yes
       # 是否自动加载当前目录（不含子目录）所有图片到播放列表，默认：yes
       images=no
     #+END_SRC
@@ -281,7 +289,7 @@
 *** 配置方法
     配置文件：=~/.config/mpv/script-opts/playlistmanager.conf=
 
-    #+BEGIN_SRC conf
+    #+BEGIN_SRC conf :tangle ~/.config/mpv/script-opts/playlistmanager.conf :mkdirp yes
       # 主要快捷键
       key_showplaylist=F8                 # F8 显示播放列表
       key_closeplaylist=ESC F8            # ESC 或 F8 关闭播放列表
