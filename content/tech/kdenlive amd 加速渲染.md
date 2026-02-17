@@ -74,7 +74,7 @@ f=mp4 vcodec=av1_vaapi vaapi_device=/dev/dri/renderD128 qp=24 g=75 acodec=aac ab
 
 -   g=75 (关键帧间隔 / GOP Size)
 
-    计算逻辑: 针对 25 fps 项目，设置 75 表示 3秒 一个关键帧 (\\(75 \div 25 = 3\\)。
+    计算逻辑: 针对 25 fps 项目，设置 75 表示 3秒 一个关键帧 (\\(75 \div 25 = 3\\))。
 
     作用: 3秒的间隔保证了拖动进度条时的流畅度，同时比短 GOP (如 1秒) 有更高的压缩效率。
 

@@ -49,6 +49,8 @@ Content = ""
   comments = true
   discussionTitle = "欢迎来到评论区"
   discussionSubtitle = "感谢您的耐心阅读！来选个表情，或者留个评论吧！"
+  # katex
+  math = true
 
 [params.author]
   name  = "wang1zhen"
