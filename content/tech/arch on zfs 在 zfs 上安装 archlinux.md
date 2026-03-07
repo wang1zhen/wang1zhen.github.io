@@ -292,19 +292,6 @@ zfs create \
     -o recordsize=64K \
     -o atime=off \
     zroot/containers
-
-
-# 创建临时文件数据集 - 性能优化
-zfs create \
-    -o mountpoint=/tmp \
-    -o compression=off \
-    -o sync=disabled \
-    -o atime=off \
-    -o devices=off \
-    -o exec=on \
-    -o setuid=off \
-    zroot/tmp
-
 # 创建SMB共享数据集 - 私有共享，性能优化（Samba 另行配置）
 zfs create \
     -o mountpoint=/share \

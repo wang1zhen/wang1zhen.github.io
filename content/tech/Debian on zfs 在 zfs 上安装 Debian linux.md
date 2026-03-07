@@ -253,19 +253,6 @@ zfs create \
     -o atime=off \
     rpool/containers
 
-
-
-# 创建临时文件数据集 - 性能优化
-zfs create \
-    -o mountpoint=/tmp \
-    -o compression=off \
-    -o sync=disabled \
-    -o atime=off \
-    -o devices=off \
-    -o exec=on \
-    -o setuid=off \
-    rpool/tmp
-
 # 创建SMB共享数据集 - 私有共享，性能优化（Samba 另行配置）
 zfs create \
     -o mountpoint=/share \
@@ -344,7 +331,7 @@ genfstab -U /mnt >> /mnt/etc/fstab
 # 编辑fstab文件
 vim /mnt/etc/fstab
 
-# 注意：ZFS数据集（包括/tmp）不需要在fstab中配置，ZFS会自动管理
+# 注意：ZFS数据集不需要在fstab中配置；/tmp 默认由系统以 tmpfs 管理
 ```
 
 
