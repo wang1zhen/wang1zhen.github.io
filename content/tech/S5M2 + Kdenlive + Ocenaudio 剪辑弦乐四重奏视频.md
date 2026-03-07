@@ -47,12 +47,12 @@ draft = false
 5.  **导出：** `文件` -&gt; ~另存为~，命名为 ~M10_Mastered.wav~。
 
 
-## Kdenlive 项目初始化 (3K 分辨率) {#kdenlive-项目初始化--3k-分辨率}
+## Kdenlive 项目初始化 (4K 分辨率) {#kdenlive-项目初始化--4k-分辨率}
 
 1.  \*打开 Kdenlive\*，点击顶部菜单 `设置 (Settings)` -&gt; ~管理项目配置 (Manage Project Profiles)~。
 2.  点击左上角的 **新建配置 (Create new profile)** 按钮。
 3.  **输入以下参数：**
-    -   **描述：** S5M2 Downscale 3K (2976x1984)
+    -   **描述：** S5M2 Downscale 4K
     -   **尺寸：** 3840 x 2560
     -   **帧率：** 25 / 1
     -   **像素长宽比：** 1 : 1 (Square)
